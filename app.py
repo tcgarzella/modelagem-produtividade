@@ -1,9 +1,6 @@
 """
 Sistema de Modelagem de Produtividade Agrícola
 Interface Streamlit — integra NASA POWER + motor de cálculo
-
-Execução:
-    streamlit run app.py
 """
 
 import streamlit as st
@@ -23,8 +20,22 @@ from nasa_power import (
 )
 
 # ─────────────────────────────────────────────
-# CONFIGURAÇÃO DA PÁGINA
+# PALETA E ESTILO
 # ─────────────────────────────────────────────
+
+DARK_BG      = "#0e1117"
+PANEL_BG     = "#1a1d27"
+GRID_COLOR   = "#2a2d3a"
+TEXT_MAIN    = "#e8eaf0"
+TEXT_SUB     = "#8b90a0"
+
+C_ENVELOPE   = "rgba(59, 130, 246, 0.15)"   # azul translúcido — faixa atingível
+C_ENVELOPE_L = "rgba(59, 130, 246, 0)"
+C_ATING      = "#3b82f6"                     # azul — produtividade atingível
+C_REAL       = "#22c55e"                     # verde — produtividade real
+C_EFIC       = "#a78bfa"                     # lilás — eficiência agronômica
+C_MELHOR     = "#38bdf8"                     # azul claro (referência)
+C_PIOR       = "#f87171"                     # vermelho (referência)
 
 st.set_page_config(
     page_title="Modelagem de Produtividade",
@@ -33,124 +44,122 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CSS mínimo para limpeza visual
-st.markdown("""
+st.markdown(f"""
 <style>
-    .block-container { padding-top: 1.5rem; }
-    .stMetric label { font-size: 0.85rem; color: #555; }
-    div[data-testid="metric-container"] { background: #f8f9fa; border-radius: 6px; padding: 0.6rem 1rem; }
+    .stApp {{ background-color: {DARK_BG}; }}
+    .block-container {{ padding-top: 1.2rem; padding-bottom: 1rem; }}
+    section[data-testid="stSidebar"] {{ background-color: {PANEL_BG}; }}
+    .stMetric {{ background-color: {PANEL_BG}; border-radius: 8px; padding: 0.6rem 1rem; }}
+    div[data-testid="metric-container"] {{
+        background-color: {PANEL_BG};
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        border: 1px solid {GRID_COLOR};
+    }}
+    .efic-card {{
+        text-align: center; padding: 14px 10px;
+        border-radius: 8px;
+        background-color: {PANEL_BG};
+        border: 1px solid {GRID_COLOR};
+        margin: 4px;
+    }}
+    .efic-val {{ font-size: 1.6rem; font-weight: 700; }}
+    .efic-ano {{ font-size: 0.82rem; color: {TEXT_SUB}; margin-top: 2px; }}
 </style>
 """, unsafe_allow_html=True)
 
+
 # ─────────────────────────────────────────────
-# SIDEBAR — PARÂMETROS DE ENTRADA
+# SIDEBAR
 # ─────────────────────────────────────────────
 
 with st.sidebar:
     st.title("⚙️ Parâmetros")
 
     st.subheader("Cultura e local")
-    cultura = st.selectbox("Cultura", list(CULTURAS.keys()), index=2)  # Soja default
-    latitude  = st.number_input("Latitude (°)", value=-18.59, step=0.01, format="%.4f")
+    cultura   = st.selectbox("Cultura", list(CULTURAS.keys()), index=2)
+    latitude  = st.number_input("Latitude (°)",  value=-18.59, step=0.01, format="%.4f")
     longitude = st.number_input("Longitude (°)", value=-47.40, step=0.01, format="%.4f")
 
     st.subheader("Solo")
     argila = st.number_input("Argila (%)", min_value=1.0, max_value=80.0, value=13.8, step=0.1)
     z_cm   = st.number_input("Prof. radicular (cm)", min_value=10, max_value=200, value=30, step=5)
-
-    cad = calcular_cad(argila, z_cm)
-    tex = classificar_textura(argila)
+    cad    = calcular_cad(argila, z_cm)
+    tex    = classificar_textura(argila)
     st.caption(f"CAD = **{cad:.0f} mm** — {tex}")
 
     st.subheader("Janela de plantio")
     ano_ref = date.today().year
     col1, col2 = st.columns(2)
+    MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
     with col1:
-        mes_ini = st.selectbox("Início (mês)", range(1, 13),
-                               index=9, format_func=lambda m: date(2000, m, 1).strftime("%b"))
-        dia_ini = st.number_input("Dia", min_value=1, max_value=31, value=1, key="dia_ini")
+        mes_ini = st.selectbox("Início", range(1,13), index=9,
+                               format_func=lambda m: MESES[m-1])
+        dia_ini = st.number_input("Dia", 1, 31, 1, key="di")
     with col2:
-        mes_fim = st.selectbox("Fim (mês)", range(1, 13),
-                               index=10, format_func=lambda m: date(2000, m, 1).strftime("%b"))
-        dia_fim = st.number_input("Dia", min_value=1, max_value=31, value=30, key="dia_fim")
+        mes_fim = st.selectbox("Fim", range(1,13), index=10,
+                               format_func=lambda m: MESES[m-1])
+        dia_fim = st.number_input("Dia", 1, 31, 30, key="df")
 
-    passo = st.radio("Passo de simulação", [5, 10], index=0, horizontal=True)
+    passo = st.radio("Passo (dias)", [5, 10], index=0, horizontal=True)
 
     st.subheader("Produtividade real (opcional)")
-    st.caption("Informe para calcular eficiência agronômica")
-
+    st.caption("Preencha para calcular eficiência agronômica")
     anos_hist = []
     for i in range(5):
         ano_i = ano_ref - 5 + i
-        v = st.number_input(f"{ano_i} (kg/ha)", min_value=0, max_value=20000,
-                            value=0, step=100, key=f"prod_{ano_i}")
+        v = st.number_input(f"{ano_i} (kg/ha)", 0, 20000, 0, 100, key=f"p{ano_i}")
         anos_hist.append({"ano": ano_i, "prod_real": v if v > 0 else None})
 
     st.subheader("Dados climáticos")
-    usar_mock = st.checkbox("Usar dados simulados (offline)", value=False,
-                            help="Ativa série climática sintética para testes sem acesso à NASA POWER")
+    usar_mock       = st.checkbox("Usar dados simulados (offline)", value=False)
     forcar_download = st.checkbox("Forçar nova busca (ignorar cache)", value=False)
 
     rodar = st.button("▶ Executar simulação", type="primary", use_container_width=True)
 
 
 # ─────────────────────────────────────────────
-# LÓGICA PRINCIPAL
+# FUNÇÕES AUXILIARES
 # ─────────────────────────────────────────────
 
-def montar_datas_janela(ano_ref, mes_ini, dia_ini, mes_fim, dia_fim):
-    """Constrói datas de referência para a janela de plantio."""
-    try:
-        d_ini = date(ano_ref, mes_ini, dia_ini)
-    except ValueError:
-        d_ini = date(ano_ref, mes_ini, 28)
-    try:
-        d_fim = date(ano_ref, mes_fim, dia_fim)
-    except ValueError:
-        d_fim = date(ano_ref, mes_fim, 28)
+def montar_datas_janela(ano, mes_ini, dia_ini, mes_fim, dia_fim):
+    try:    d_ini = date(ano, mes_ini, dia_ini)
+    except: d_ini = date(ano, mes_ini, 28)
+    try:    d_fim = date(ano, mes_fim, dia_fim)
+    except: d_fim = date(ano, mes_fim, 28)
     if d_fim < d_ini:
         d_fim = d_fim.replace(year=d_fim.year + 1)
     return d_ini, d_fim
 
 
-def cor_eficiencia(pct):
-    """Mapeamento de cor para eficiência agronômica."""
-    if pct >= 85:   return "#2ecc71"
-    elif pct >= 70: return "#f39c12"
-    else:            return "#e74c3c"
+def cor_efic(pct):
+    if pct > 100:   return "#f59e0b"   # âmbar — acima do esperado
+    elif pct >= 85: return "#22c55e"   # verde
+    elif pct >= 70: return "#f59e0b"   # âmbar
+    else:           return "#ef4444"   # vermelho
 
 
-def executar_simulacao(
-    cultura, latitude, longitude, argila, z_cm,
-    mes_ini, dia_ini, mes_fim, dia_fim, passo,
-    anos_hist, usar_mock, forcar_download
-):
+def executar_simulacao():
     ano_corrente = date.today().year
-    anos_simular = [r["ano"] for r in anos_hist]
-    ciclo = CULTURAS[cultura]["ciclo"]
+    ciclo        = CULTURAS[cultura]["ciclo"]
+    anos_sim     = [r["ano"] for r in anos_hist]
+    d_ini_ref    = date(ano_corrente, mes_ini, min(dia_ini, 28))
+    anos_nasa    = anos_necessarios_para_janela(ano_corrente, d_ini_ref, ciclo, 5)
+    anos_nasa    = sorted(set(anos_nasa + anos_sim + [a+1 for a in anos_sim]))
 
-    d_ini_ref = date(ano_corrente, mes_ini, min(dia_ini, 28))
-    anos_nasa = anos_necessarios_para_janela(
-        ano_corrente, d_ini_ref, ciclo, n_anos_historico=5
-    )
-    # Garante cobertura de todos os anos + o seguinte (ciclo pós-virada)
-    anos_nasa = sorted(set(anos_nasa + anos_simular + [a + 1 for a in anos_simular]))
-
-    # Busca série climática
     with st.spinner("Buscando dados climáticos NASA POWER..."):
         if usar_mock:
             serie = _gerar_serie_mock(latitude, longitude, anos_nasa)
-            st.info("⚠️ Usando dados climáticos sintéticos (modo offline).")
+            st.info("⚠️ Dados sintéticos — modo offline ativo.")
         else:
             try:
                 serie = buscar_serie_climatica(
                     lat=latitude, lon=longitude,
-                    anos=anos_nasa,
-                    forcar_atualizacao=forcar_download,
+                    anos=anos_nasa, forcar_atualizacao=forcar_download,
                 )
             except Exception as e:
-                st.error(f"Erro ao acessar NASA POWER: {e}")
-                st.info("Tente ativar 'Usar dados simulados' para continuar offline.")
+                st.error(f"Erro NASA POWER: {e}")
+                st.info("Ative 'Usar dados simulados' para continuar offline.")
                 return None
 
     if not serie:
@@ -158,91 +167,110 @@ def executar_simulacao(
         return None
 
     tmed_ref = calcular_tmed_ref(serie)
-
-    # Simula cada ano
-    resultados_anos = []
-    barra = st.progress(0, text="Simulando anos...")
+    resultados = []
+    barra = st.progress(0, text="Simulando...")
 
     for i, item in enumerate(anos_hist):
-        ano = item["ano"]
+        ano       = item["ano"]
         prod_real = item["prod_real"]
-
         d_ini, d_fim = montar_datas_janela(ano, mes_ini, dia_ini, mes_fim, dia_fim)
 
         res = simular_janela(
             cultura=cultura, ano=ano,
-            data_inicio_janela=d_ini,
-            data_fim_janela=d_fim,
-            passo_dias=passo,
-            serie_climatica=serie,
-            latitude=latitude,
-            argila_pct=argila,
-            z_cm=z_cm,
-            tmed_ref=tmed_ref,
+            data_inicio_janela=d_ini, data_fim_janela=d_fim,
+            passo_dias=passo, serie_climatica=serie,
+            latitude=latitude, argila_pct=argila,
+            z_cm=z_cm, tmed_ref=tmed_ref,
         )
 
+        # Filtra valores de prod_min irreais (ciclos incompletos)
+        prod_min = res.get("prod_ating_min")
+        prod_med = res.get("prod_ating_medio")
+        if prod_min is not None and prod_med is not None and prod_med > 0:
+            if prod_min < prod_med * 0.5:   # descarta se min < 50% da mediana
+                prod_min = None             # não exibe limite inferior espúrio
+
         efic = None
-        if res.get("valido") and prod_real and res["prod_ating_medio"] > 0:
-            efic = prod_real / res["prod_ating_medio"] * 100
+        if res.get("valido") and prod_real and prod_med and prod_med > 0:
+            efic = prod_real / prod_med * 100
 
-        resultados_anos.append({
-            "ano": ano,
-            "valido": res.get("valido", False),
-            "prod_min": res.get("prod_ating_min"),
-            "prod_max": res.get("prod_ating_max"),
-            "prod_medio": res.get("prod_ating_medio"),
-            "prod_pct": res.get("prod_ating_pct"),
+        resultados.append({
+            "ano":        ano,
+            "valido":     res.get("valido", False),
+            "prod_min":   prod_min,
+            "prod_max":   res.get("prod_ating_max"),
+            "prod_medio": prod_med,
+            "prod_pct":   res.get("prod_ating_pct"),
             "deficit_mm": res.get("deficit_medio_mm"),
-            "prod_real": prod_real,
+            "prod_real":  prod_real,
             "eficiencia": efic,
-            "n_sim": res.get("n_simulacoes", 0),
+            "n_sim":      res.get("n_simulacoes", 0),
         })
-
-        barra.progress((i + 1) / len(anos_hist), text=f"Simulando {ano}...")
+        barra.progress((i+1)/len(anos_hist), text=f"Simulando {ano}...")
 
     barra.empty()
-    return resultados_anos, tmed_ref, calcular_cad(argila, z_cm)
+    return resultados, tmed_ref
 
 
 # ─────────────────────────────────────────────
-# VISUALIZAÇÃO
+# GRÁFICO — estilo dark com envelope azul
 # ─────────────────────────────────────────────
 
 def construir_grafico(resultados, cultura):
-    """Monta o gráfico de linhas idêntico ao da planilha original."""
-
-    anos_v     = [r["ano"]       for r in resultados if r["valido"]]
-    prod_min   = [r["prod_min"]  for r in resultados if r["valido"]]
-    prod_max   = [r["prod_max"]  for r in resultados if r["valido"]]
-    prod_med   = [r["prod_medio"]for r in resultados if r["valido"]]
-    prod_real  = [r["prod_real"] for r in resultados if r["valido"]]
-    eficiencia = [r["eficiencia"]for r in resultados if r["valido"]]
+    validos    = [r for r in resultados if r["valido"]]
+    anos_v     = [r["ano"]        for r in validos]
+    prod_min   = [r["prod_min"]   for r in validos]
+    prod_max   = [r["prod_max"]   for r in validos]
+    prod_med   = [r["prod_medio"] for r in validos]
+    prod_real  = [r["prod_real"]  for r in validos]
+    eficiencia = [r["eficiencia"] for r in validos]
 
     tem_real = any(p is not None for p in prod_real)
     tem_efic = any(e is not None for e in eficiencia)
 
     fig = go.Figure()
 
-    # ── Faixa atingível (área sombreada) ─────────────────────
-    fig.add_trace(go.Scatter(
-        x=anos_v + anos_v[::-1],
-        y=prod_max + prod_min[::-1],
-        fill="toself",
-        fillcolor="rgba(180,180,180,0.25)",
-        line=dict(color="rgba(0,0,0,0)"),
-        name="Faixa atingível",
-        hoverinfo="skip",
-        showlegend=True,
-    ))
+    # ── Envelope (faixa atingível) ────────────────────────────
+    # Apenas onde min não é None
+    anos_env = [a for a, mn in zip(anos_v, prod_min) if mn is not None]
+    min_env  = [mn for mn in prod_min if mn is not None]
+    max_env  = [mx for mx, mn in zip(prod_max, prod_min) if mn is not None]
 
-    # ── Produtividade atingível (linha central) ───────────────
+    if anos_env:
+        fig.add_trace(go.Scatter(
+            x=anos_env + anos_env[::-1],
+            y=max_env + min_env[::-1],
+            fill="toself",
+            fillcolor=C_ENVELOPE,
+            line=dict(color="rgba(0,0,0,0)"),
+            name="Faixa atingível",
+            hoverinfo="skip",
+        ))
+        # Borda superior da faixa
+        fig.add_trace(go.Scatter(
+            x=anos_env, y=max_env,
+            mode="lines",
+            line=dict(color=C_ATING, width=1, dash="dot"),
+            showlegend=False, hoverinfo="skip",
+        ))
+        # Borda inferior
+        fig.add_trace(go.Scatter(
+            x=anos_env, y=min_env,
+            mode="lines",
+            line=dict(color=C_ATING, width=1, dash="dot"),
+            showlegend=False, hoverinfo="skip",
+        ))
+
+    # ── Produtividade atingível (dia médio da janela) ─────────
     fig.add_trace(go.Scatter(
         x=anos_v, y=prod_med,
         mode="lines+markers",
         name="Produtividade atingível",
-        line=dict(color="#2980b9", width=2.5),
-        marker=dict(size=6),
+        line=dict(color=C_ATING, width=2.5),
+        marker=dict(size=7, color=C_ATING,
+                    line=dict(color=DARK_BG, width=1.5)),
         yaxis="y1",
+        hovertemplate="<b>%{x}</b><br>Atingível: %{y:,.0f} kg/ha<extra></extra>",
     ))
 
     # ── Produtividade real ────────────────────────────────────
@@ -253,93 +281,119 @@ def construir_grafico(resultados, cultura):
             x=anos_r, y=vals_r,
             mode="lines+markers",
             name="Produtividade obtida",
-            line=dict(color="#27ae60", width=2.5),
-            marker=dict(size=7),
+            line=dict(color=C_REAL, width=2.5),
+            marker=dict(size=8, color=C_REAL,
+                        line=dict(color=DARK_BG, width=1.5)),
             yaxis="y1",
+            hovertemplate="<b>%{x}</b><br>Obtida: %{y:,.0f} kg/ha<extra></extra>",
         ))
 
     # ── Eficiência agronômica (eixo secundário) ───────────────
     if tem_efic:
         anos_e = [a for a, e in zip(anos_v, eficiencia) if e is not None]
         vals_e = [e for e in eficiencia if e is not None]
-
-        # Anotações de valor
         fig.add_trace(go.Scatter(
             x=anos_e, y=vals_e,
             mode="lines+markers+text",
             name="Eficiência agronômica (%)",
-            line=dict(color="#8e44ad", width=2, dash="dot"),
-            marker=dict(size=9, symbol="circle"),
+            line=dict(color=C_EFIC, width=2, dash="dot"),
+            marker=dict(size=9, color=C_EFIC,
+                        line=dict(color=DARK_BG, width=1.5)),
             text=[f"{v:.0f}%" for v in vals_e],
             textposition="top center",
-            textfont=dict(size=11, color="#8e44ad"),
+            textfont=dict(size=11, color=C_EFIC, family="Arial"),
             yaxis="y2",
+            hovertemplate="<b>%{x}</b><br>Eficiência: %{y:.1f}%<extra></extra>",
         ))
 
-    # ── Layout ────────────────────────────────────────────────
-    y1_max = max(filter(None, prod_max + (prod_real if tem_real else [])), default=100)
-    y1_max = y1_max * 1.15
+    # ── Layout dark ───────────────────────────────────────────
+    todos_vals = [v for v in prod_med + (vals_r if tem_real else []) if v]
+    y1_max = max(todos_vals) * 1.18 if todos_vals else 6000
+    y1_min = 0
+
+    efic_vals = [e for e in eficiencia if e is not None] if tem_efic else []
+    y2_min = max(50, min(efic_vals) - 10) if efic_vals else 60
+    y2_max = min(115, max(efic_vals) + 10) if efic_vals else 100
+
+    axis_common = dict(
+        gridcolor=GRID_COLOR,
+        color=TEXT_SUB,
+        tickfont=dict(color=TEXT_SUB, size=11),
+        title_font=dict(color=TEXT_SUB, size=12),
+        zerolinecolor=GRID_COLOR,
+    )
 
     fig.update_layout(
         title=dict(
             text=f"Modelagem de Produtividade — {cultura}",
-            font=dict(size=15),
-            x=0.02,
+            font=dict(size=15, color=TEXT_MAIN, family="Arial"),
+            x=0.01,
+        ),
+        paper_bgcolor=PANEL_BG,
+        plot_bgcolor=PANEL_BG,
+        height=500,
+        margin=dict(l=70, r=70, t=55, b=90),
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor=PANEL_BG,
+            bordercolor=GRID_COLOR,
+            font=dict(color=TEXT_MAIN, size=12),
         ),
         xaxis=dict(
             title="Ano",
             tickmode="array",
             tickvals=anos_v,
             ticktext=[str(a) for a in anos_v],
-            gridcolor="#eee",
+            **axis_common,
         ),
         yaxis=dict(
             title="Produtividade (kg ha⁻¹)",
-            range=[0, y1_max],
-            gridcolor="#eee",
+            range=[y1_min, y1_max],
+            **axis_common,
         ),
         yaxis2=dict(
             title="Eficiência Agronômica (%)",
-            overlaying="y",
-            side="right",
-            range=[60, 100],
+            overlaying="y", side="right",
+            range=[y2_min, y2_max],
             tickformat=".0f",
             showgrid=False,
-        ) if tem_efic else {},
+            **axis_common,
+        ) if tem_efic else dict(visible=False),
         legend=dict(
             orientation="h",
-            yanchor="bottom", y=-0.25,
+            yanchor="bottom", y=-0.28,
             xanchor="left", x=0,
-            font=dict(size=11),
+            font=dict(color=TEXT_MAIN, size=11),
+            bgcolor="rgba(0,0,0,0)",
         ),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        height=480,
-        margin=dict(l=60, r=60, t=50, b=80),
-        hovermode="x unified",
     )
 
     return fig
 
 
+# ─────────────────────────────────────────────
+# TABELA
+# ─────────────────────────────────────────────
+
 def construir_tabela(resultados):
-    """Tabela de resultados por ano."""
     rows = []
     for r in resultados:
         if not r["valido"]:
             rows.append({"Ano": r["ano"], "Status": "Dados insuficientes"})
             continue
+        faixa = (f"{r['prod_min']:,.0f} — {r['prod_max']:,.0f}"
+                 if r["prod_min"] is not None else f"≤ {r['prod_max']:,.0f}")
         row = {
-            "Ano": r["ano"],
+            "Ano":                    r["ano"],
             "Prod. atingível (kg/ha)": f"{r['prod_medio']:,.0f}",
-            "Faixa (kg/ha)": f"{r['prod_min']:,.0f} — {r['prod_max']:,.0f}",
-            "% atingível": f"{r['prod_pct']:.1f}%",
-            "Déficit (mm)": f"{r['deficit_mm']:.0f}",
-            "Simulações": r["n_sim"],
+            "Faixa (kg/ha)":          faixa,
+            "% atingível":            f"{r['prod_pct']:.1f}%",
+            "Déficit (mm)":           f"{r['deficit_mm']:.0f}",
+            "Simulações":             r["n_sim"],
         }
         if r["prod_real"]:
             row["Prod. real (kg/ha)"] = f"{r['prod_real']:,.0f}"
-        if r["eficiencia"]:
+        if r["eficiencia"] is not None:
             row["Eficiência (%)"] = f"{r['eficiencia']:.1f}%"
         rows.append(row)
     return pd.DataFrame(rows)
@@ -353,18 +407,15 @@ st.title("🌾 Modelagem de Produtividade Agrícola")
 st.caption("Sistema de simulação de produtividade atingível por janela de plantio — dados NASA POWER")
 
 if not rodar:
-    # Estado inicial
     st.info(
         "Configure os parâmetros no painel lateral e clique em **▶ Executar simulação**.\n\n"
         "O sistema simula a produtividade atingível para cada ano da janela histórica, "
         "considerando as variações climáticas dentro da janela de plantio definida."
     )
-
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Cultura selecionada", cultura)
-        ciclo_c = CULTURAS[cultura]["ciclo"]
-        st.metric("Ciclo (dias)", ciclo_c)
+        st.metric("Cultura", cultura)
+        st.metric("Ciclo (dias)", CULTURAS[cultura]["ciclo"])
     with col2:
         st.metric("CAD estimada", f"{calcular_cad(argila, z_cm):.0f} mm")
         st.metric("Textura", classificar_textura(argila))
@@ -373,29 +424,16 @@ if not rodar:
         st.metric("Passo de simulação", f"{passo} dias")
 
 else:
-    # Executa simulação
-    resultado = executar_simulacao(
-        cultura=cultura,
-        latitude=latitude, longitude=longitude,
-        argila=argila, z_cm=z_cm,
-        mes_ini=mes_ini, dia_ini=dia_ini,
-        mes_fim=mes_fim, dia_fim=dia_fim,
-        passo=passo,
-        anos_hist=anos_hist,
-        usar_mock=usar_mock,
-        forcar_download=forcar_download,
-    )
+    resultado = executar_simulacao()
 
     if resultado:
-        resultados, tmed_ref, cad_calc = resultado
+        resultados, tmed_ref = resultado
+        validos = [r for r in resultados if r["valido"]]
 
         # ── Métricas de topo ─────────────────────────────────
-        anos_validos = [r for r in resultados if r["valido"]]
-        if anos_validos:
-            ultimo = anos_validos[-1]
-            media_prod = sum(r["prod_medio"] for r in anos_validos) / len(anos_validos)
-            media_deficit = sum(r["deficit_mm"] for r in anos_validos) / len(anos_validos)
-
+        if validos:
+            media_prod   = sum(r["prod_medio"] for r in validos) / len(validos)
+            media_deficit = sum(r["deficit_mm"] for r in validos) / len(validos)
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Cultura", cultura)
             col2.metric("Prod. média atingível", f"{media_prod:,.0f} kg/ha")
@@ -404,30 +442,31 @@ else:
 
         st.divider()
 
-        # ── Gráfico principal ─────────────────────────────────
+        # ── Gráfico ───────────────────────────────────────────
         fig = construir_grafico(resultados, cultura)
         st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
 
-        # ── Tabela de resultados ──────────────────────────────
+        # ── Tabela ────────────────────────────────────────────
         st.subheader("Resultados por ano")
         df = construir_tabela(resultados)
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-        # ── Eficiência agronômica — cards ─────────────────────
-        efics = [(r["ano"], r["eficiencia"]) for r in resultados if r.get("eficiencia")]
+        # ── Cards de eficiência ───────────────────────────────
+        efics = [(r["ano"], r["eficiencia"])
+                 for r in resultados if r.get("eficiencia") is not None]
         if efics:
             st.subheader("Eficiência agronômica")
             cols = st.columns(len(efics))
             for col, (ano, ef) in zip(cols, efics):
-                cor = cor_eficiencia(ef)
+                cor = cor_efic(ef)
                 col.markdown(
-                    f"<div style='text-align:center; padding:10px; "
-                    f"border-left:4px solid {cor}; background:#fafafa; border-radius:4px'>"
-                    f"<b style='font-size:1.2rem; color:{cor}'>{ef:.1f}%</b><br>"
-                    f"<span style='color:#666; font-size:0.85rem'>{ano}</span></div>",
-                    unsafe_allow_html=True
+                    f"<div class='efic-card'>"
+                    f"<div class='efic-val' style='color:{cor}'>{ef:.1f}%</div>"
+                    f"<div class='efic-ano'>{ano}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
 
         # ── Parâmetros utilizados ─────────────────────────────
@@ -439,7 +478,7 @@ else:
             c1.write(f"**Ciclo:** {p['ciclo']} dias")
             c2.write(f"**Argila:** {argila}%")
             c2.write(f"**Prof. radicular:** {z_cm} cm")
-            c2.write(f"**CAD:** {cad_calc:.0f} mm")
+            c2.write(f"**CAD:** {calcular_cad(argila, z_cm):.0f} mm")
             c3.write(f"**Latitude:** {latitude:.4f}°")
             c3.write(f"**Longitude:** {longitude:.4f}°")
             c3.write(f"**Tmed ref.:** {tmed_ref:.2f}°C")
