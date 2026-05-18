@@ -352,18 +352,32 @@ def simular_janela(
     if not resultados:
         return {"ano": ano, "valido": False}
 
-    vals    = [r["prod_atingivel_kgha"] for r in resultados]
+    import numpy as np
+
+    vals = [r["prod_atingivel_kgha"] for r in resultados]
+
+    # Percentis estatísticos — linha central = P70 (consistente com planilha)
+    p10 = float(np.percentile(vals, 10))
+    p30 = float(np.percentile(vals, 30))
+    p70 = float(np.percentile(vals, 70))
+    p90 = float(np.percentile(vals, 90))
+
+    # Déficit e % atingível do dia central (referência interna)
     idx_mid = len(resultados) // 2
     rm      = resultados[idx_mid]
 
     return {
         "ano": ano, "valido": True,
-        "n_simulacoes": len(resultados),
-        "prod_ating_min":    min(vals),
-        "prod_ating_max":    max(vals),
-        "prod_ating_medio":  rm["prod_atingivel_kgha"],
-        "prod_ating_pct":    rm["prod_atingivel_pct"],
-        "deficit_medio_mm":  rm["deficit_total_mm"],
+        "n_simulacoes":       len(resultados),
+        "prod_ating_p10":     p10,
+        "prod_ating_p30":     p30,
+        "prod_ating_p70":     p70,   # linha central do gráfico
+        "prod_ating_p90":     p90,
+        "prod_ating_min":     float(np.min(vals)),
+        "prod_ating_max":     float(np.max(vals)),
+        "prod_ating_medio":   p70,   # retrocompatibilidade — agora = P70
+        "prod_ating_pct":     rm["prod_atingivel_pct"],
+        "deficit_medio_mm":   rm["deficit_total_mm"],
         "data_plantio_medio": rm["data_plantio"],
         "resultados_detalhados": resultados,
     }
