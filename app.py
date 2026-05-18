@@ -144,7 +144,24 @@ def cor_efic(pct):
     else:           return "#ef4444"   # vermelho
 
 
+def _argilas_faixa(argila_central: float) -> list:
+    """
+    Gera vetor de teores de argila para estimar a faixa de incerteza da
+    produtividade atingivel — replica a logica da planilha, que usa a
+    dispersao entre talh\u00f5es com diferentes texturas.
+    Desvio padrao tipico entre talh\u00f5es de uma fazenda: ~5 pp de argila.
+    Usamos ±1.3 dp (equiv. P10-P90 de uma normal).
+    """
+    import numpy as np
+    std   = max(3.0, argila_central * 0.28)
+    pontos = np.linspace(argila_central - 1.3 * std,
+                         argila_central + 1.3 * std, 13)
+    return [float(np.clip(v, 5.0, 75.0)) for v in pontos]
+
+
 def executar_simulacao():
+    import numpy as np
+
     ano_corrente = date.today().year
     ciclo        = CULTURAS[cultura]["ciclo"]
     anos_sim     = [r["ano"] for r in anos_hist]
@@ -171,46 +188,62 @@ def executar_simulacao():
         st.error("Série climática vazia. Verifique coordenadas e conexão.")
         return None
 
-    tmed_ref = calcular_tmed_ref(serie)
+    tmed_ref   = calcular_tmed_ref(serie)
+    argilas_v  = _argilas_faixa(argila)
     resultados = []
-    barra = st.progress(0, text="Simulando...")
+    barra      = st.progress(0, text="Simulando...")
 
     for i, item in enumerate(anos_hist):
         ano       = item["ano"]
         prod_real = item["prod_real"]
         d_ini, d_fim = montar_datas_janela(ano, mes_ini, dia_ini, mes_fim, dia_fim)
 
-        res = simular_janela(
+        # Simulacao central — argila informada, P70 da janela de plantio
+        res_central = simular_janela(
             cultura=cultura, ano=ano,
             data_inicio_janela=d_ini, data_fim_janela=d_fim,
             passo_dias=passo, serie_climatica=serie,
             latitude=latitude, argila_pct=argila,
             z_cm=z_cm, tmed_ref=tmed_ref,
         )
+        p70_central = res_central.get("prod_ating_p70")
 
-        # Percentis estatísticos da janela (P70 = linha central, como na planilha)
-        p10 = res.get("prod_ating_p10")
-        p30 = res.get("prod_ating_p30")
-        p70 = res.get("prod_ating_p70")   # linha central
-        p90 = res.get("prod_ating_p90")
+        # Faixa: varia argila em torno do valor informado
+        vals_faixa = []
+        for arg_v in argilas_v:
+            rv = simular_janela(
+                cultura=cultura, ano=ano,
+                data_inicio_janela=d_ini, data_fim_janela=d_fim,
+                passo_dias=passo, serie_climatica=serie,
+                latitude=latitude, argila_pct=arg_v,
+                z_cm=z_cm, tmed_ref=tmed_ref,
+            )
+            if rv.get("valido") and rv.get("prod_ating_p70"):
+                vals_faixa.append(rv["prod_ating_p70"])
+
+        if vals_faixa:
+            p10_faixa = float(np.percentile(vals_faixa, 10))
+            p90_faixa = float(np.percentile(vals_faixa, 90))
+        else:
+            p10_faixa = p70_central
+            p90_faixa = p70_central
 
         efic = None
-        if res.get("valido") and prod_real and p70 and p70 > 0:
-            efic = prod_real / p70 * 100   # eficiência sempre sobre P70
+        if res_central.get("valido") and prod_real and p70_central and p70_central > 0:
+            efic = prod_real / p70_central * 100
 
         resultados.append({
             "ano":        ano,
-            "valido":     res.get("valido", False),
-            "prod_p10":   p10,
-            "prod_p30":   p30,
-            "prod_p70":   p70,
-            "prod_p90":   p90,
-            "prod_medio": p70,             # retrocompatibilidade com tabela/métricas
-            "prod_pct":   res.get("prod_ating_pct"),
-            "deficit_mm": res.get("deficit_medio_mm"),
+            "valido":     res_central.get("valido", False),
+            "prod_p10":   p10_faixa,
+            "prod_p70":   p70_central,
+            "prod_p90":   p90_faixa,
+            "prod_medio": p70_central,
+            "prod_pct":   res_central.get("prod_ating_pct"),
+            "deficit_mm": res_central.get("deficit_medio_mm"),
             "prod_real":  prod_real,
             "eficiencia": efic,
-            "n_sim":      res.get("n_simulacoes", 0),
+            "n_sim":      res_central.get("n_simulacoes", 0),
         })
         barra.progress((i+1)/len(anos_hist), text=f"Simulando {ano}...")
 
@@ -226,7 +259,6 @@ def construir_grafico(resultados, cultura):
     validos    = [r for r in resultados if r["valido"]]
     anos_v     = [r["ano"]        for r in validos]
     prod_p10   = [r["prod_p10"]   for r in validos]
-    prod_p30   = [r["prod_p30"]   for r in validos]
     prod_p70   = [r["prod_p70"]   for r in validos]   # linha central
     prod_p90   = [r["prod_p90"]   for r in validos]
     prod_real  = [r["prod_real"]  for r in validos]
@@ -237,7 +269,7 @@ def construir_grafico(resultados, cultura):
 
     fig = go.Figure()
 
-    # ── Envelope externo P10–P90 ──────────────────────────────
+    # ── Faixa atingível P10–P90 (variação textural) ──────────
     anos_env = [a for a, v in zip(anos_v, prod_p10) if v is not None]
     p10_env  = [v for v in prod_p10 if v is not None]
     p90_env  = [v90 for v10, v90 in zip(prod_p10, prod_p90) if v10 is not None]
@@ -249,10 +281,9 @@ def construir_grafico(resultados, cultura):
             fill="toself",
             fillcolor=C_ENVELOPE,
             line=dict(color="rgba(0,0,0,0)"),
-            name="Faixa P10–P90",
+            name="Faixa atingível",
             hoverinfo="skip",
         ))
-        # Bordas pontilhadas externas
         fig.add_trace(go.Scatter(
             x=anos_env, y=p90_env,
             mode="lines",
@@ -266,27 +297,12 @@ def construir_grafico(resultados, cultura):
             showlegend=False, hoverinfo="skip",
         ))
 
-    # ── Faixa interna P30–P70 (mais escura) ──────────────────
-    p30_env = [v for v in prod_p30 if v is not None]
-    p70_env = [v for v in prod_p70 if v is not None]
-
-    if anos_env and p30_env and p70_env:
-        fig.add_trace(go.Scatter(
-            x=anos_env + anos_env[::-1],
-            y=p70_env + p30_env[::-1],
-            fill="toself",
-            fillcolor="rgba(59, 130, 246, 0.28)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="Faixa P30–P70",
-            hoverinfo="skip",
-        ))
-
-    # ── Linha central P70 ────────────────────────────────────
+    # ── Linha central P70 — curva suave (spline) ─────────────
     fig.add_trace(go.Scatter(
         x=anos_v, y=prod_p70,
         mode="lines+markers",
         name="Produtividade atingível (P70)",
-        line=dict(color=C_ATING, width=2.5),
+        line=dict(color=C_ATING, width=2.5, shape="spline", smoothing=0.8),
         marker=dict(size=7, color=C_ATING,
                     line=dict(color=DARK_BG, width=1.5)),
         yaxis="y1",
@@ -301,7 +317,7 @@ def construir_grafico(resultados, cultura):
             x=anos_r, y=vals_r,
             mode="lines+markers",
             name="Produtividade obtida",
-            line=dict(color=C_REAL, width=2.5),
+            line=dict(color=C_REAL, width=2.5, shape="spline", smoothing=0.8),
             marker=dict(size=8, color=C_REAL,
                         line=dict(color=DARK_BG, width=1.5)),
             yaxis="y1",
@@ -316,7 +332,7 @@ def construir_grafico(resultados, cultura):
             x=anos_e, y=vals_e,
             mode="lines+markers+text",
             name="Eficiência agronômica (%)",
-            line=dict(color=C_EFIC, width=2, dash="dot"),
+            line=dict(color=C_EFIC, width=2, dash="dot", shape="spline", smoothing=0.8),
             marker=dict(size=9, color=C_EFIC,
                         line=dict(color=DARK_BG, width=1.5)),
             text=[f"{v:.0f}%" for v in vals_e],
