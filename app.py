@@ -79,9 +79,8 @@ with st.sidebar:
     st.subheader("Cultura e local")
     cultura   = st.selectbox("Cultura", list(CULTURAS.keys()), index=2)
     latitude  = st.number_input("Latitude (°)",  value=-18.59, step=0.01, format="%.4f")
-    longitude = st.number_input("Longitude (°)", value=None,   step=0.01, format="%.4f",
-                                placeholder="-48.8891",
-                                help="Informe a longitude do ponto de interesse (ex: -48.8891)")
+    longitude = st.number_input("Longitude (°)", value=-48.8891, step=0.01, format="%.4f",
+                                help="Informe a longitude do ponto de interesse")
 
     st.subheader("Solo")
     argila = st.number_input("Argila (%)", min_value=1.0, max_value=80.0, value=13.8, step=0.1)
@@ -110,10 +109,13 @@ with st.sidebar:
 
     st.subheader("Produtividade real (opcional)")
     st.caption("Preencha para calcular eficiência agronômica")
+    # TEMPORÁRIO — valores de validação do exemplo (remover após testes)
+    _defaults = {2021: 3755, 2022: 4073, 2023: 4032, 2024: 3992, 2025: 3391}
     anos_hist = []
     for i in range(5):
-        ano_i = ano_ref - 5 + i
-        v = st.number_input(f"{ano_i} (kg/ha)", 0, 20000, 0, 100, key=f"p{ano_i}")
+        ano_i   = ano_ref - 5 + i
+        default = _defaults.get(ano_i, 0)
+        v = st.number_input(f"{ano_i} (kg/ha)", 0, 20000, default, 100, key=f"p{ano_i}")
         anos_hist.append({"ano": ano_i, "prod_real": v if v > 0 else None})
 
     st.subheader("Dados climáticos")
@@ -147,15 +149,13 @@ def cor_efic(pct):
 def _argilas_faixa(argila_central: float) -> list:
     """
     Gera vetor de teores de argila para estimar a faixa de incerteza da
-    produtividade atingivel — replica a logica da planilha, que usa a
-    dispersao entre talh\u00f5es com diferentes texturas.
-    Desvio padrao tipico entre talh\u00f5es de uma fazenda: ~5 pp de argila.
-    Usamos ±1.3 dp (equiv. P10-P90 de uma normal).
+    produtividade atingivel. Fatores 0.70 e 2.10 reproduzem o range
+    P10-P90 observado entre talhoes de referencia (amplitude CAD ~20mm).
     """
     import numpy as np
-    std   = max(3.0, argila_central * 0.28)
-    pontos = np.linspace(argila_central - 1.3 * std,
-                         argila_central + 1.3 * std, 13)
+    p10_arg = argila_central * 0.70
+    p90_arg = argila_central * 2.10
+    pontos  = np.linspace(p10_arg, p90_arg, 13)
     return [float(np.clip(v, 5.0, 75.0)) for v in pontos]
 
 
