@@ -79,8 +79,9 @@ with st.sidebar:
     st.subheader("Cultura e local")
     cultura   = st.selectbox("Cultura", list(CULTURAS.keys()), index=2)
     latitude  = st.number_input("Latitude (°)",  value=-18.59, step=0.01, format="%.4f")
-    longitude = st.number_input("Longitude (°)", value=-48.8891, step=0.01, format="%.4f",
-                                help="Informe a longitude do ponto de interesse")
+    longitude = st.number_input("Longitude (°)", value=None, step=0.01, format="%.4f",
+                                placeholder="-48.8891",
+                                help="Informe a longitude do ponto de interesse (ex: -48.8891)")
 
     st.subheader("Solo")
     argila = st.number_input("Argila (%)", min_value=1.0, max_value=80.0, value=13.8, step=0.1)
@@ -109,13 +110,10 @@ with st.sidebar:
 
     st.subheader("Produtividade real (opcional)")
     st.caption("Preencha para calcular eficiência agronômica")
-    # TEMPORÁRIO — valores de validação do exemplo (remover após testes)
-    _defaults = {2021: 3755, 2022: 4073, 2023: 4032, 2024: 3992, 2025: 3391}
     anos_hist = []
     for i in range(5):
-        ano_i   = ano_ref - 5 + i
-        default = _defaults.get(ano_i, 0)
-        v = st.number_input(f"{ano_i} (kg/ha)", 0, 20000, default, 100, key=f"p{ano_i}")
+        ano_i = ano_ref - 5 + i
+        v = st.number_input(f"{ano_i} (kg/ha)", 0, 20000, 0, 100, key=f"p{ano_i}")
         anos_hist.append({"ano": ano_i, "prod_real": v if v > 0 else None})
 
     st.subheader("Dados climáticos")
