@@ -79,7 +79,9 @@ with st.sidebar:
     st.subheader("Cultura e local")
     cultura   = st.selectbox("Cultura", list(CULTURAS.keys()), index=2)
     latitude  = st.number_input("Latitude (°)",  value=-18.59, step=0.01, format="%.4f")
-    longitude = st.number_input("Longitude (°)", value=-47.40, step=0.01, format="%.4f")
+    longitude = st.number_input("Longitude (°)", value=None,   step=0.01, format="%.4f",
+                                placeholder="-48.8891",
+                                help="Informe a longitude do ponto de interesse (ex: -48.8891)")
 
     st.subheader("Solo")
     argila = st.number_input("Argila (%)", min_value=1.0, max_value=80.0, value=13.8, step=0.1)
@@ -102,6 +104,9 @@ with st.sidebar:
         dia_fim = st.number_input("Dia", 1, 31, 30, key="df")
 
     passo = st.radio("Passo (dias)", [5, 10], index=0, horizontal=True)
+
+    if longitude is None:
+        st.warning("⚠️ Informe a longitude antes de executar.")
 
     st.subheader("Produtividade real (opcional)")
     st.caption("Preencha para calcular eficiência agronômica")
@@ -183,23 +188,24 @@ def executar_simulacao():
             z_cm=z_cm, tmed_ref=tmed_ref,
         )
 
-        # Filtra valores de prod_min irreais (ciclos incompletos)
-        prod_min = res.get("prod_ating_min")
-        prod_med = res.get("prod_ating_medio")
-        if prod_min is not None and prod_med is not None and prod_med > 0:
-            if prod_min < prod_med * 0.5:   # descarta se min < 50% da mediana
-                prod_min = None             # não exibe limite inferior espúrio
+        # Percentis estatísticos da janela (P70 = linha central, como na planilha)
+        p10 = res.get("prod_ating_p10")
+        p30 = res.get("prod_ating_p30")
+        p70 = res.get("prod_ating_p70")   # linha central
+        p90 = res.get("prod_ating_p90")
 
         efic = None
-        if res.get("valido") and prod_real and prod_med and prod_med > 0:
-            efic = prod_real / prod_med * 100
+        if res.get("valido") and prod_real and p70 and p70 > 0:
+            efic = prod_real / p70 * 100   # eficiência sempre sobre P70
 
         resultados.append({
             "ano":        ano,
             "valido":     res.get("valido", False),
-            "prod_min":   prod_min,
-            "prod_max":   res.get("prod_ating_max"),
-            "prod_medio": prod_med,
+            "prod_p10":   p10,
+            "prod_p30":   p30,
+            "prod_p70":   p70,
+            "prod_p90":   p90,
+            "prod_medio": p70,             # retrocompatibilidade com tabela/métricas
             "prod_pct":   res.get("prod_ating_pct"),
             "deficit_mm": res.get("deficit_medio_mm"),
             "prod_real":  prod_real,
@@ -219,9 +225,10 @@ def executar_simulacao():
 def construir_grafico(resultados, cultura):
     validos    = [r for r in resultados if r["valido"]]
     anos_v     = [r["ano"]        for r in validos]
-    prod_min   = [r["prod_min"]   for r in validos]
-    prod_max   = [r["prod_max"]   for r in validos]
-    prod_med   = [r["prod_medio"] for r in validos]
+    prod_p10   = [r["prod_p10"]   for r in validos]
+    prod_p30   = [r["prod_p30"]   for r in validos]
+    prod_p70   = [r["prod_p70"]   for r in validos]   # linha central
+    prod_p90   = [r["prod_p90"]   for r in validos]
     prod_real  = [r["prod_real"]  for r in validos]
     eficiencia = [r["eficiencia"] for r in validos]
 
@@ -230,47 +237,60 @@ def construir_grafico(resultados, cultura):
 
     fig = go.Figure()
 
-    # ── Envelope (faixa atingível) ────────────────────────────
-    # Apenas onde min não é None
-    anos_env = [a for a, mn in zip(anos_v, prod_min) if mn is not None]
-    min_env  = [mn for mn in prod_min if mn is not None]
-    max_env  = [mx for mx, mn in zip(prod_max, prod_min) if mn is not None]
+    # ── Envelope externo P10–P90 ──────────────────────────────
+    anos_env = [a for a, v in zip(anos_v, prod_p10) if v is not None]
+    p10_env  = [v for v in prod_p10 if v is not None]
+    p90_env  = [v90 for v10, v90 in zip(prod_p10, prod_p90) if v10 is not None]
 
     if anos_env:
         fig.add_trace(go.Scatter(
             x=anos_env + anos_env[::-1],
-            y=max_env + min_env[::-1],
+            y=p90_env + p10_env[::-1],
             fill="toself",
             fillcolor=C_ENVELOPE,
             line=dict(color="rgba(0,0,0,0)"),
-            name="Faixa atingível",
+            name="Faixa P10–P90",
             hoverinfo="skip",
         ))
-        # Borda superior da faixa
+        # Bordas pontilhadas externas
         fig.add_trace(go.Scatter(
-            x=anos_env, y=max_env,
+            x=anos_env, y=p90_env,
             mode="lines",
             line=dict(color=C_ATING, width=1, dash="dot"),
             showlegend=False, hoverinfo="skip",
         ))
-        # Borda inferior
         fig.add_trace(go.Scatter(
-            x=anos_env, y=min_env,
+            x=anos_env, y=p10_env,
             mode="lines",
             line=dict(color=C_ATING, width=1, dash="dot"),
             showlegend=False, hoverinfo="skip",
         ))
 
-    # ── Produtividade atingível (dia médio da janela) ─────────
+    # ── Faixa interna P30–P70 (mais escura) ──────────────────
+    p30_env = [v for v in prod_p30 if v is not None]
+    p70_env = [v for v in prod_p70 if v is not None]
+
+    if anos_env and p30_env and p70_env:
+        fig.add_trace(go.Scatter(
+            x=anos_env + anos_env[::-1],
+            y=p70_env + p30_env[::-1],
+            fill="toself",
+            fillcolor="rgba(59, 130, 246, 0.28)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="Faixa P30–P70",
+            hoverinfo="skip",
+        ))
+
+    # ── Linha central P70 ────────────────────────────────────
     fig.add_trace(go.Scatter(
-        x=anos_v, y=prod_med,
+        x=anos_v, y=prod_p70,
         mode="lines+markers",
-        name="Produtividade atingível",
+        name="Produtividade atingível (P70)",
         line=dict(color=C_ATING, width=2.5),
         marker=dict(size=7, color=C_ATING,
                     line=dict(color=DARK_BG, width=1.5)),
         yaxis="y1",
-        hovertemplate="<b>%{x}</b><br>Atingível: %{y:,.0f} kg/ha<extra></extra>",
+        hovertemplate="<b>%{x}</b><br>Atingível P70: %{y:,.0f} kg/ha<extra></extra>",
     ))
 
     # ── Produtividade real ────────────────────────────────────
@@ -307,7 +327,7 @@ def construir_grafico(resultados, cultura):
         ))
 
     # ── Layout dark ───────────────────────────────────────────
-    todos_vals = [v for v in prod_med + (vals_r if tem_real else []) if v]
+    todos_vals = [v for v in prod_p70 + (vals_r if tem_real else []) if v]
     y1_max = max(todos_vals) * 1.18 if todos_vals else 6000
     y1_min = 0
 
@@ -381,14 +401,17 @@ def construir_tabela(resultados):
         if not r["valido"]:
             rows.append({"Ano": r["ano"], "Status": "Dados insuficientes"})
             continue
-        faixa = (f"{r['prod_min']:,.0f} — {r['prod_max']:,.0f}"
-                 if r["prod_min"] is not None else f"≤ {r['prod_max']:,.0f}")
+        p10 = r.get("prod_p10")
+        p90 = r.get("prod_p90")
+        p70 = r.get("prod_p70") or r.get("prod_medio")
+        faixa = (f"{p10:,.0f} — {p90:,.0f}"
+                 if p10 is not None and p90 is not None else "—")
         row = {
             "Ano":                    r["ano"],
-            "Prod. atingível (kg/ha)": f"{r['prod_medio']:,.0f}",
-            "Faixa (kg/ha)":          faixa,
-            "% atingível":            f"{r['prod_pct']:.1f}%",
-            "Déficit (mm)":           f"{r['deficit_mm']:.0f}",
+            "Prod. atingível P70 (kg/ha)": f"{p70:,.0f}" if p70 else "—",
+            "Faixa P10–P90 (kg/ha)":  faixa,
+            "% atingível":            f"{r['prod_pct']:.1f}%" if r.get("prod_pct") else "—",
+            "Déficit (mm)":           f"{r['deficit_mm']:.0f}" if r.get("deficit_mm") is not None else "—",
             "Simulações":             r["n_sim"],
         }
         if r["prod_real"]:
@@ -424,6 +447,10 @@ if not rodar:
         st.metric("Passo de simulação", f"{passo} dias")
 
 else:
+    if longitude is None:
+        st.error("⚠️ Longitude não informada. Preencha o campo no painel lateral antes de executar.")
+        st.stop()
+
     resultado = executar_simulacao()
 
     if resultado:
