@@ -208,9 +208,18 @@ def executar_simulacao():
         )
         p70_central = res_central.get("prod_ating_p70")
 
-        # Faixa: varia argila em torno do valor informado
+        # Faixa: combina variacao de data (janela) × variacao de argila
+        # Coleta prod_atingivel_kgha de cada data simulada para cada argila
         vals_faixa = []
-        for arg_v in argilas_v:
+
+        # 1. Datas da janela com argila central (ja calculado — reutiliza)
+        for r in res_central.get("resultados_detalhados", []):
+            v = r.get("prod_atingivel_kgha", 0)
+            if v > 0:
+                vals_faixa.append(v)
+
+        # 2. Argilas extremas (P10 e P90 do range textural) × todas as datas
+        for arg_v in [argilas_v[0], argilas_v[-1]]:   # apenas extremos
             rv = simular_janela(
                 cultura=cultura, ano=ano,
                 data_inicio_janela=d_ini, data_fim_janela=d_fim,
@@ -218,8 +227,10 @@ def executar_simulacao():
                 latitude=latitude, argila_pct=arg_v,
                 z_cm=z_cm, tmed_ref=tmed_ref,
             )
-            if rv.get("valido") and rv.get("prod_ating_p70"):
-                vals_faixa.append(rv["prod_ating_p70"])
+            for r in rv.get("resultados_detalhados", []):
+                v = r.get("prod_atingivel_kgha", 0)
+                if v > 0:
+                    vals_faixa.append(v)
 
         if vals_faixa:
             p10_faixa = float(np.percentile(vals_faixa, 10))
