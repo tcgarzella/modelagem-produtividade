@@ -459,8 +459,8 @@ else:
 
         # ── Métricas de topo ─────────────────────────────────
         if validos:
-            media_prod   = sum(r["prod_medio"] for r in validos) / len(validos)
-            media_deficit = sum(r["deficit_mm"] for r in validos) / len(validos)
+            media_prod   = sum(r["prod_medio"] for r in validos if r["prod_medio"]) / len(validos)
+            media_deficit = sum(r["deficit_mm"] for r in validos if r["deficit_mm"] is not None) / len(validos)
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Cultura", cultura)
             col2.metric("Prod. média atingível", f"{media_prod:,.0f} kg/ha")
