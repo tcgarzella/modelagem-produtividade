@@ -173,13 +173,11 @@ def render_map_picker(
     map_data = st_folium(
         m,
         height=height,
-        width="100%",
         key=key,
-        returned_objects=["last_clicked"],
     )
 
     # Captura clique
-    if map_data and map_data.get("last_clicked"):
+    if map_data and isinstance(map_data, dict) and map_data.get("last_clicked"):
         clicked = map_data["last_clicked"]
         st.session_state[lat_key] = round(clicked["lat"], 6)
         st.session_state[lon_key] = round(clicked["lng"], 6)
