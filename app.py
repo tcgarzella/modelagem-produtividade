@@ -385,21 +385,21 @@ with tab_sim:
                 anos_busca = list(range(int(ano_ini), int(ano_fim) + 2))
                 dados_clima = buscar_serie_climatica(lat, lon, anos_busca)
 
+                tmed_ref = calcular_tmed_ref(dados_clima)
+
                 resultados_anos = {}
                 for ano in anos_lista:
                     res = simular_janela(
-                        dados_clima=dados_clima,
-                        ano=ano,
                         cultura=cultura,
-                        lat=lat,
-                        lon=lon,
-                        argila=argila,
-                        prof_rad_cm=prof,
-                        mes_ini=int(mes_ini),
-                        dia_ini=int(dia_ini),
-                        mes_fim=int(mes_fim),
-                        dia_fim=int(dia_fim),
-                        passo=int(passo),
+                        ano=ano,
+                        data_inicio_janela=date(ano, int(mes_ini), int(dia_ini)),
+                        data_fim_janela=date(ano, int(mes_fim), int(dia_fim)),
+                        passo_dias=int(passo),
+                        serie_climatica=dados_clima,
+                        latitude=lat,
+                        argila_pct=argila,
+                        z_cm=float(prof),
+                        tmed_ref=tmed_ref,
                     )
                     resultados_anos[ano] = res
 
