@@ -84,14 +84,18 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     # Eficiência
     fig.add_trace(go.Scatter(
         x=anos_str, y=eff_vals,
-        mode="lines+markers",
+        mode="lines+markers+text",
         line=dict(color=COLORS["chart_purple"], width=2, dash="dot"),
         marker=dict(size=6, color=COLORS["chart_purple"]),
-        name="Eficiência (%)",
+        text=[f"{v:.1f}%" if v is not None else "" for v in eff_vals],
+        textposition="top center",
+        textfont=dict(color=COLORS["chart_purple"], size=11,
+                      family="DM Mono, monospace"),
+        name="Eficiência agronômica (%)",
         yaxis="y2",
         line_shape="spline",
         connectgaps=False,
-        hovertemplate="%{y:.1f}%<extra>Eficiência</extra>",
+        hovertemplate="%{y:.1f}%<extra>Eficiência agronômica</extra>",
     ))
 
     fig.update_layout(
@@ -106,9 +110,9 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         ),
         xaxis=dict(title="Safra", gridcolor="#1e2130", linecolor="#2a2e3e",
                    tickfont=dict(size=11), type="category"),
-        yaxis=dict(title="Produtividade (t/ha)", gridcolor="#1e2130",
-                   linecolor="#2a2e3e", tickformat=".2f"),
-        yaxis2=dict(title="Eficiência (%)", overlaying="y", side="right",
+        yaxis=dict(title="Produtividade (kg/ha)", gridcolor="#1e2130",
+                   linecolor="#2a2e3e", tickformat=".0f"),
+        yaxis2=dict(title="Eficiência agronômica (%)", overlaying="y", side="right",
                     showgrid=False, tickformat=".0f", ticksuffix="%",
                     range=[0, 120], linecolor="#2a2e3e"),
         legend=dict(
@@ -119,7 +123,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         hovermode="x unified",
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#2a2e3e",
                         font=dict(family="DM Mono, monospace", size=11)),
-        margin=dict(l=60, r=60, t=80, b=50),
+        margin=dict(l=60, r=60, t=80, b=60),
         height=480,
     )
 
