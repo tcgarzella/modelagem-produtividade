@@ -201,33 +201,30 @@ with tab_sim:
 # TAB 2 — LOCALIZAÇÃO
 # ════════════════════════════════════════════════════════════════════════════
 with tab_loc:
-    st.markdown("#### Teste componente HTML")
-    import streamlit.components.v1 as components
-    components.html("<h1 style='color:red'>Teste HTML</h1>", height=100)
+    st.markdown("#### Localização")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        lat_input = st.number_input(
+            "Latitude", value=-18.5871, format="%.6f",
+            min_value=-35.0, max_value=5.0, step=0.0001,
+            key="map_picker_lat"
+        )
+    with col2:
+        lon_input = st.number_input(
+            "Longitude", value=-48.8891, format="%.6f",
+            min_value=-74.0, max_value=-34.0, step=0.0001,
+            key="map_picker_lon"
+        )
 
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="
-        background: #13161f;
-        border: 1px solid #2a2e3e;
-        border-left: 3px solid #788c00;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        font-family: 'DM Sans', sans-serif;
-        font-size: 0.85rem;
-        color: #d1d5db;
-    ">
-        <b style="color:#8ca000;">Ponto selecionado:</b>
-        Lat <code style="color:#bcd44a;">{lat_sel:.6f}</code> &nbsp;·&nbsp;
-        Lon <code style="color:#bcd44a;">{lon_sel:.6f}</code>
-        <br>
-        <span style="color:#6b7280;font-size:0.75rem;">
-        Clique em qualquer ponto do mapa ou use a entrada manual para ajustar.
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-render_footer()
+    import pandas as pd
+    st.map(pd.DataFrame({"lat": [lat_input], "lon": [lon_input]}), zoom=9)
+    
+    st.markdown(
+        f"📍 Ponto selecionado: `{lat_input:.6f}, {lon_input:.6f}` — "
+        f"[Ver no Google Maps](https://maps.google.com/?q={lat_input},{lon_input})",
+        unsafe_allow_html=False,
+    )
 
 
 # ────────────────────────────────────────────────────────────────────────────
