@@ -347,7 +347,7 @@ with tab_sim:
     st.markdown("---")
 
     # ── Entrada de produção real ──────────────────────────────────────────
-    st.markdown("#### Produção Real (t/ha)")
+    st.markdown("#### Produção Real (kg/ha)")
     st.markdown(
         '<div style="font-family:\'DM Sans\',sans-serif;font-size:0.78rem;'
         'color:#6b7280;margin-bottom:0.75rem;">'
@@ -365,10 +365,10 @@ with tab_sim:
             prod_real[ano] = st.number_input(
                 str(ano),
                 min_value=0.0,
-                max_value=20.0,
+                max_value=20000.0,
                 value=0.0,
-                step=0.1,
-                format="%.3f",
+                step=1.0,
+                format="%.0f",
                 key=f"real_{ano}",
             )
 
@@ -423,4 +423,3 @@ with tab_sim:
 
 
 render_footer()
-
