@@ -201,11 +201,9 @@ with tab_sim:
 # TAB 2 — LOCALIZAÇÃO
 # ════════════════════════════════════════════════════════════════════════════
 with tab_loc:
-    st.markdown("#### Teste de mapa")
-    import folium
-    from streamlit_folium import st_folium
-    m = folium.Map(location=[-18.5871, -48.8891], zoom_start=9)
-    st_folium(m, height=400, key="test_map")
+    st.markdown("#### Teste componente HTML")
+    import streamlit.components.v1 as components
+    components.html("<h1 style='color:red'>Teste HTML</h1>", height=100)
 
     st.markdown("---")
     st.markdown(f"""
