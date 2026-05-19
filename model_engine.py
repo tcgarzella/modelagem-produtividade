@@ -358,9 +358,9 @@ def simular_janela(
 
     # Percentis estatísticos — linha central = P70 (consistente com planilha)
     p10 = float(np.percentile(vals, 10))
-    p30 = float(np.percentile(vals, 30))
+    #p30 = float(np.percentile(vals, 30))
     p50 = float(np.percentile(vals, 50))
-    p70 = float(np.percentile(vals, 70))
+    #p70 = float(np.percentile(vals, 70))
     p90 = float(np.percentile(vals, 90))
 
     # Déficit e % atingível do dia central (referência interna)
@@ -371,9 +371,9 @@ def simular_janela(
         "ano": ano, "valido": True,
         "n_simulacoes":       len(resultados),
         "prod_ating_p10":     p10,
-        "prod_ating_p30":     p30,
-        "prod_ating_p50":     p50,
-        "prod_ating_p70":     p70,   # linha central do gráfico
+        #"prod_ating_p30":     p30,
+        "prod_ating_p50":     p50,   # linha central do gráfico
+        #"prod_ating_p70":     p70,
         "prod_ating_p90":     p90,
         "prod_ating_min":     float(np.min(vals)),
         "prod_ating_max":     float(np.max(vals)),
