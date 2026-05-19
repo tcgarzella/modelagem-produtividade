@@ -173,7 +173,7 @@ def render_map_picker(
     map_data = st_folium(
         m,
         height=height,
-        use_container_width=True,
+        width="100%",
         key=key,
         returned_objects=["last_clicked"],
     )
