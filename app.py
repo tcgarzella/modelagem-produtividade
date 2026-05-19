@@ -300,7 +300,7 @@ with tab_loc:
     )
 
     map_df = pd.DataFrame({"lat": [lat_input], "lon": [lon_input]})
-    st.map(map_df, zoom=9, use_container_width=True)
+    st.map(map_df, zoom=9)
 
     st.markdown(f"""
     <div style="
