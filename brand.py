@@ -217,28 +217,16 @@ def render_header(show_user: bool = True):
     b64 = _get_logo_b64()
     logo_html = f'<img src="data:image/png;base64,{b64}" style="width:36px;height:36px;border-radius:6px;" />' if b64 else ""
 
-    user_info = ""
-    if show_user and st.session_state.get("authenticated"):
-        email = st.session_state.get("user_email", "")
-        user_info = f"""
-        <div style="display:flex;align-items:center;gap:0.6rem;">
-            <div style="width:8px;height:8px;background:#22c55e;border-radius:50%;"></div>
-            <span style="font-family:'DM Sans',sans-serif;font-size:0.78rem;
-                         color:#6b7280;max-width:180px;overflow:hidden;
-                         text-overflow:ellipsis;white-space:nowrap;">{email}</span>
-        </div>
-        """
+    col_brand, col_user = st.columns([3, 1])
 
-    st.markdown(f"""
-    <div style="
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.75rem 0 1rem;
-        border-bottom: 1px solid #2a2e3e;
-        margin-bottom: 1.5rem;
-    ">
-        <div style="display:flex;align-items:center;gap:0.75rem;">
+    with col_brand:
+        st.markdown(f"""
+        <div style="
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 0 1rem;
+        ">
             {logo_html}
             <div>
                 <div style="font-family:'Rajdhani',sans-serif;font-size:1.35rem;
@@ -253,9 +241,26 @@ def render_header(show_user: bool = True):
                 </div>
             </div>
         </div>
-        {user_info}
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+
+    if show_user and st.session_state.get("authenticated"):
+        email = st.session_state.get("user_email", "")
+        with col_user:
+            st.markdown(f"""
+            <div style="
+                display:flex;align-items:center;justify-content:flex-end;
+                gap:0.5rem;padding-top:1.1rem;
+            ">
+                <div style="width:7px;height:7px;background:#22c55e;
+                            border-radius:50%;flex-shrink:0;"></div>
+                <span style="font-family:'DM Sans',sans-serif;font-size:0.75rem;
+                             color:#6b7280;overflow:hidden;text-overflow:ellipsis;
+                             white-space:nowrap;">{email}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('<hr style="border-color:#2a2e3e;margin:0 0 1.5rem;" />',
+                unsafe_allow_html=True)
 
 
 def render_sidebar_header():
