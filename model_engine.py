@@ -359,6 +359,7 @@ def simular_janela(
     # Percentis estatísticos — linha central = P70 (consistente com planilha)
     p10 = float(np.percentile(vals, 10))
     p30 = float(np.percentile(vals, 30))
+    p50 = float(np.percentile(vals, 50))
     p70 = float(np.percentile(vals, 70))
     p90 = float(np.percentile(vals, 90))
 
@@ -371,11 +372,12 @@ def simular_janela(
         "n_simulacoes":       len(resultados),
         "prod_ating_p10":     p10,
         "prod_ating_p30":     p30,
+        "prod_ating_p50":     p50,
         "prod_ating_p70":     p70,   # linha central do gráfico
         "prod_ating_p90":     p90,
         "prod_ating_min":     float(np.min(vals)),
         "prod_ating_max":     float(np.max(vals)),
-        "prod_ating_medio":   p70,   # retrocompatibilidade — agora = P70
+        "prod_ating_medio":   p50,   # retrocompatibilidade — agora = P70
         "prod_ating_pct":     rm["prod_atingivel_pct"],
         "deficit_medio_mm":   rm["deficit_total_mm"],
         "data_plantio_medio": rm["data_plantio"],
