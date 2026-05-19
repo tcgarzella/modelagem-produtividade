@@ -201,22 +201,11 @@ with tab_sim:
 # TAB 2 — LOCALIZAÇÃO
 # ════════════════════════════════════════════════════════════════════════════
 with tab_loc:
-    st.markdown("#### Selecione a área de interesse")
-    st.markdown(
-        '<div style="font-family:\'DM Sans\',sans-serif;font-size:0.82rem;'
-        'color:#6b7280;margin-bottom:1rem;">Clique no mapa para definir o '
-        'ponto central da análise. Use a camada de satélite para identificar '
-        'o talhão ou região de interesse.</div>',
-        unsafe_allow_html=True,
-    )
-
-    lat_sel, lon_sel = render_map_picker(
-        default_lat=-18.5871,
-        default_lon=-48.8891,
-        zoom_start=9,
-        height=500,
-        key="map_picker",
-    )
+    st.markdown("#### Teste de mapa")
+    import folium
+    from streamlit_folium import st_folium
+    m = folium.Map(location=[-18.5871, -48.8891], zoom_start=9)
+    st_folium(m, height=400, key="test_map")
 
     st.markdown("---")
     st.markdown(f"""
