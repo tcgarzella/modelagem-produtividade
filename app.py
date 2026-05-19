@@ -10,7 +10,7 @@ from datetime import date
 
 # ── Módulos do projeto ───────────────────────────────────────────────────────
 from model_engine import simular_janela
-from nasa_power import buscar_dados_nasa
+from nasa_power import buscar_serie_climatica, calcular_tmed_ref
 from auth import render_auth_page, logout
 from map_picker import render_map_picker
 from brand import (
@@ -156,7 +156,8 @@ with tab_sim:
         with st.spinner("Buscando dados climáticos e simulando..."):
             try:
                 # Busca dados NASA POWER
-                dados_clima = buscar_dados_nasa(lat, lon, ano_ini, ano_fim)
+                anos_lista = list(range(int(ano_ini), int(ano_fim) + 1))
+                dados_clima = buscar_serie_climatica(lat, lon, anos_lista)
 
                 # Simula para cada ano
                 resultados_anos = {}
