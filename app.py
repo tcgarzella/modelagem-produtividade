@@ -27,20 +27,19 @@ from brand import (
 # ────────────────────────────────────────────────────────────────────────────
 
 def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultura: str):
-    """Gráfico Plotly com faixa P10-P90, P70, real e eficiência."""
+    """Gráfico Plotly com faixa P10-P90, P50, real e eficiência."""
 
     anos_plot = sorted(resultados_anos.keys())
     p10_vals  = [resultados_anos[a]["prod_ating_p10"] for a in anos_plot]
-    p30_vals  = [resultados_anos[a]["prod_ating_p30"] for a in anos_plot]
-    p70_vals  = [resultados_anos[a]["prod_ating_p70"] for a in anos_plot]
+    p50_vals  = [resultados_anos[a]["prod_ating_p50"] for a in anos_plot]
     p90_vals  = [resultados_anos[a]["prod_ating_p90"] for a in anos_plot]
     anos_str  = [str(a) for a in anos_plot]
 
     eff_vals = []
     for a in anos_plot:
-        p70  = resultados_anos[a]["prod_ating_p70"]
+        p50  = resultados_anos[a]["prod_ating_p50"]
         real = prod_real.get(a, 0)
-        eff_vals.append((real / p70 * 100) if p70 > 0 and real > 0 else None)
+        eff_vals.append((real / p50 * 100) if p50 > 0 and real > 0 else None)
 
     fig = go.Figure()
 
@@ -55,26 +54,16 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         hoverinfo="skip",
     ))
 
-    # P30
+    # P50
     fig.add_trace(go.Scatter(
-        x=anos_str, y=p30_vals,
-        mode="lines",
-        line=dict(color="rgba(59,130,246,0.35)", width=1, dash="dash"),
-        name="P30 atingível",
-        line_shape="spline",
-        hovertemplate="%{y:.3f} t/ha<extra>P30</extra>",
-    ))
-
-    # P70
-    fig.add_trace(go.Scatter(
-        x=anos_str, y=p70_vals,
+        x=anos_str, y=p50_vals,
         mode="lines+markers",
         line=dict(color=COLORS["chart_blue"], width=2.5),
         marker=dict(size=7, color=COLORS["chart_blue"],
                     line=dict(width=2, color="#0e1117")),
-        name="P70 atingível",
+        name="P50 atingível",
         line_shape="spline",
-        hovertemplate="%{y:.3f} t/ha<extra>P70 atingível</extra>",
+        hovertemplate="%{y:.0f} kg/ha<extra>P50 atingível</extra>",
     ))
 
     # Real
@@ -89,7 +78,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         name="Produção real",
         line_shape="spline",
         connectgaps=False,
-        hovertemplate="%{y:.3f} t/ha<extra>Real</extra>",
+        hovertemplate="%{y:.0f} kg/ha<extra>Real</extra>",
     ))
 
     # Eficiência
@@ -116,7 +105,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
             x=0.01,
         ),
         xaxis=dict(title="Safra", gridcolor="#1e2130", linecolor="#2a2e3e",
-                   tickfont=dict(size=11)),
+                   tickfont=dict(size=11), type="category"),
         yaxis=dict(title="Produtividade (t/ha)", gridcolor="#1e2130",
                    linecolor="#2a2e3e", tickformat=".2f"),
         yaxis2=dict(title="Eficiência (%)", overlaying="y", side="right",
@@ -136,16 +125,23 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Cards de eficiência
+    # Cards de eficiência — usando componentes nativos
     st.markdown("#### Eficiência por safra")
-    cards_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.75rem;">'
-    for ano in anos_plot:
-        real = prod_real.get(ano, 0)
-        p70  = resultados_anos[ano]["prod_ating_p70"]
-        if real > 0 and p70 > 0:
-            cards_html += efficiency_card(ano, real, p70)
-    cards_html += "</div>"
-    st.markdown(cards_html, unsafe_allow_html=True)
+    anos_com_real = [a for a in anos_plot if prod_real.get(a, 0) > 0]
+    if anos_com_real:
+        cols = st.columns(len(anos_com_real))
+        for i, ano in enumerate(anos_com_real):
+            real = prod_real.get(ano, 0)
+            p50  = resultados_anos[ano]["prod_ating_p50"]
+            if p50 > 0:
+                eff = real / p50 * 100
+                label = "✅ Boa" if eff >= 85 else ("⚠️ Moderada" if eff >= 70 else "🔴 Baixa")
+                with cols[i]:
+                    st.metric(
+                        label=f"{ano} — {label}",
+                        value=f"{eff:.1f}%",
+                        delta=f"Real: {real:.0f} kg/ha",
+                    )
 
     # Tabela resumo
     st.markdown("#### Resumo numérico")
@@ -153,15 +149,14 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     for ano in anos_plot:
         r    = resultados_anos[ano]
         real = prod_real.get(ano, 0)
-        p70  = r["prod_ating_p70"]
-        eff  = f"{real/p70*100:.1f}%" if real > 0 and p70 > 0 else "—"
+        p50  = r["prod_ating_p50"]
+        eff  = f"{real/p50*100:.1f}%" if real > 0 and p50 > 0 else "—"
         rows.append({
-            "Ano":   ano,
-            "P10":   f"{r['prod_ating_p10']:.3f}",
-            "P30":   f"{r['prod_ating_p30']:.3f}",
-            "P70":   f"{r['prod_ating_p70']:.3f}",
-            "P90":   f"{r['prod_ating_p90']:.3f}",
-            "Real":  f"{real:.3f}" if real > 0 else "—",
+            "Ano":        ano,
+            "P10 (kg/ha)": f"{r['prod_ating_p10']:.0f}",
+            "P50 (kg/ha)": f"{r['prod_ating_p50']:.0f}",
+            "P90 (kg/ha)": f"{r['prod_ating_p90']:.0f}",
+            "Real (kg/ha)": f"{real:.0f}" if real > 0 else "—",
             "Efic.": eff,
         })
     df = pd.DataFrame(rows).set_index("Ano")
