@@ -222,6 +222,7 @@ def simular_ciclo(
     argila_pct: float,
     z_cm: float,
     tmed_ref: float,
+    f_genetico: float = 1.0,
 ) -> dict:
     p      = CULTURAS[cultura]
     Tb_inf = p["Tb_inf"]
@@ -276,7 +277,7 @@ def simular_ciclo(
         PPR_dia = ppb["PPBp"] * iaf_res["CIAF"] * CR * Iem
         PPR_acum += PPR_dia
 
-        prod_ating = PPR_acum * ph["prod_atingivel_pct"] / 100
+        prod_ating = PPR_acum * ph["prod_atingivel_pct"] / 100 * f_genetico
 
         serie_diaria.append({
             "data": data, "d_ciclo": d_ciclo, "GDA": GDA_acum,
@@ -323,6 +324,7 @@ def simular_janela(
     argila_pct: float,
     z_cm: float,
     tmed_ref: float,
+    f_genetico: float = 1.0,
 ) -> dict:
     resultados = []
     delta = (data_fim_janela - data_inicio_janela).days
@@ -338,6 +340,7 @@ def simular_janela(
             cultura=cultura, data_plantio=dp,
             serie_climatica=serie_climatica, latitude=latitude,
             argila_pct=argila_pct, z_cm=z_cm, tmed_ref=tmed_ref,
+            f_genetico=f_genetico,
         )
         if res["ciclo_dias"] == 0:
             continue
