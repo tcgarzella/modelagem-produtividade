@@ -10,6 +10,16 @@ from datetime import date
 
 # ── Módulos do projeto ───────────────────────────────────────────────────────
 from model_engine import simular_janela, CULTURAS
+
+# Fator de conversão kg/ha → unidade de exibição por cultura
+_SC_KG = {
+    "Soja": 60, "Milho": 60, "Feijão": 60, "Trigo": 60,
+    "Arroz": 50, "Algodão": 15, "Cana": 1000,
+}
+_SC_LABEL = {
+    "Soja": "sc/ha", "Milho": "sc/ha", "Feijão": "sc/ha", "Trigo": "sc/ha",
+    "Arroz": "sc/ha", "Algodão": "@/ha", "Cana": "t/ha",
+}
 from nasa_power import buscar_serie_climatica, calcular_tmed_ref
 from auth import render_auth_page, logout
 from brand import (
@@ -193,6 +203,10 @@ render_header(show_user=True)
 # ────────────────────────────────────────────────────────────────────────────
 # SIDEBAR — Parâmetros de simulação
 # ────────────────────────────────────────────────────────────────────────────
+# Defaults — sobrescritos pelo expander no sidebar
+unidade    = "kg/ha"
+f_genetico = 1.33
+
 with st.sidebar:
     render_sidebar_header()
 
