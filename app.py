@@ -20,6 +20,21 @@ _SC_LABEL = {
     "Soja": "sc/ha", "Milho": "sc/ha", "Feijão": "sc/ha", "Trigo": "sc/ha",
     "Arroz": "sc/ha", "Algodão": "@/ha", "Cana": "t/ha",
 }
+
+
+def _eficiencia_pct(real_kg: float, p50_kg: float):
+    """Eficiência agronômica (%) = real / P50 * 100, limitada a 100% na exibição.
+
+    Nota: o valor bruto pode superar 100% quando a produção real supera o P50
+    modelado — isso é um sinal de possível incerteza no P50 daquela safra
+    (dado climático, cache ou calibração), não uma eficiência real acima do
+    teto atingível. Por decisão de produto, exibimos limitado a 100% para não
+    exigir explicação desse artefato ao cliente. Se precisar investigar uma
+    safra específica, calcule real/p50_kg*100 sem o min() para ver o valor bruto.
+    """
+    if p50_kg <= 0 or real_kg <= 0:
+        return None
+    return min(real_kg / p50_kg * 100, 100.0)
 from nasa_power import buscar_serie_climatica, calcular_tmed_ref
 from auth import render_auth_page, logout
 from brand import (
@@ -54,7 +69,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     for a in anos_plot:
         p50_kg = resultados_anos[a]["prod_ating_p50"]   # sempre em kg/ha
         real   = prod_real.get(a, 0)                    # sempre em kg/ha
-        eff_vals.append((real / p50_kg * 100) if p50_kg > 0 and real > 0 else None)
+        eff_vals.append(_eficiencia_pct(real, p50_kg))
 
     fig = go.Figure()
 
@@ -152,8 +167,8 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         for i, ano in enumerate(anos_com_real):
             real   = prod_real.get(ano, 0)
             p50_kg = resultados_anos[ano]["prod_ating_p50"]   # kg/ha bruto
-            if p50_kg > 0:
-                eff   = real / p50_kg * 100
+            eff = _eficiencia_pct(real, p50_kg)
+            if eff is not None:
                 label = "✅ Boa" if eff >= 85 else ("⚠️ Moderada" if eff >= 70 else "🔴 Baixa")
                 with cols[i]:
                     st.metric(
@@ -169,7 +184,8 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         r    = resultados_anos[ano]
         real = prod_real.get(ano, 0)
         p50  = r["prod_ating_p50"]
-        eff  = f"{real/p50*100:.1f}%" if real > 0 and p50 > 0 else "—"
+        eff_v = _eficiencia_pct(real, p50)
+        eff  = f"{eff_v:.1f}%" if eff_v is not None else "—"
         rows.append({
             "Safra":               f"{str(ano)[2:]}/{str(ano+1)[2:]}",
             f"P10 ({_un_lbl})":    f"{_c(r['prod_ating_p10']):.1f}",
