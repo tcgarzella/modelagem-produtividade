@@ -178,7 +178,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
             f"Real ({_un_lbl})":   f"{_c(real):.1f}" if real > 0 else "—",
             "Efic.": eff,
         })
-    df = pd.DataFrame(rows).set_index("Ano")
+    df = pd.DataFrame(rows).set_index("Safra")
     st.dataframe(df, use_container_width=True)
 
 # ── Configuração da página ───────────────────────────────────────────────────
