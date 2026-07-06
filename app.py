@@ -287,7 +287,7 @@ with st.sidebar:
 # MAIN — Tabs
 # ────────────────────────────────────────────────────────────────────────────
 
-tab_loc, tab_sim = st.tabs(["📍 Localização", "📊 Simulação"])
+tab_loc, tab_sim, tab_clima = st.tabs(["📍 Localização", "📊 Simulação", "🌦 Clima"])
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -475,6 +475,188 @@ with tab_sim:
         f_genetico_sim   = st.session_state.get("f_genetico_sim", f_genetico)
 
         _construir_grafico(resultados_anos, prod_real_saved, anos_sim, cultura_sim, unidade=unidade_sim, f_genetico=f_genetico_sim)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 3 — DIAGNÓSTICO CLIMÁTICO
+# ════════════════════════════════════════════════════════════════════════════
+with tab_clima:
+
+    lat_c = st.session_state.get("coord_lat")
+    lon_c = st.session_state.get("coord_lon")
+
+    if lat_c is None or lon_c is None:
+        st.info("📍 Defina a localização na aba **Localização** antes de consultar o clima.")
+        st.stop()
+
+    st.markdown("#### Diagnóstico climático — dados NASA POWER")
+    st.markdown(
+        "<div style=\"font-family:'DM Sans',sans-serif;font-size:0.82rem;"
+        "color:#6b7280;margin-bottom:1rem;\">"
+        "Temperatura média e precipitação mensal por ano. "
+        "Útil para identificar lacunas, anomalias ou anos com dados inconsistentes.</div>",
+        unsafe_allow_html=True,
+    )
+
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        ano_cli_ini = st.number_input("Ano inicial", 2015, 2030, 2019, key="cli_ini")
+    with col_a2:
+        ano_cli_fim = st.number_input("Ano final",   2015, 2030, 2025, key="cli_fim")
+
+    if st.button("🔍 Buscar dados climáticos", key="btn_clima"):
+        with st.spinner("Buscando série climática..."):
+            try:
+                anos_c = list(range(int(ano_cli_ini), int(ano_cli_fim) + 1))
+                serie_c = buscar_serie_climatica(lat_c, lon_c, anos_c)
+                st.session_state["serie_clima_diag"] = serie_c
+                st.session_state["anos_clima_diag"]  = anos_c
+            except Exception as e:
+                st.error(f"Erro ao buscar dados: {e}")
+                st.stop()
+
+    if "serie_clima_diag" in st.session_state:
+        import numpy as np
+        from datetime import date as _date
+
+        serie_c = st.session_state["serie_clima_diag"]
+        anos_c  = st.session_state["anos_clima_diag"]
+        MESES   = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+
+        # Agregar por ano/mês
+        from collections import defaultdict
+        agg = defaultdict(lambda: defaultdict(list))
+        for d in serie_c:
+            dt = d["data"]
+            agg[dt.year][dt.month].append({
+                "tmed": (float(d["Tmax"]) + float(d["Tmin"])) / 2,
+                "p":    float(d.get("P", 0)),
+                "tmax": float(d["Tmax"]),
+                "tmin": float(d["Tmin"]),
+            })
+
+        # Tabela de Tmed mensal
+        st.markdown("##### Temperatura média mensal (°C)")
+        rows_t = []
+        for ano in anos_c:
+            row = {"Ano": str(ano)}
+            n_dias = 0
+            for m in range(1, 13):
+                vals = agg[ano][m]
+                n_dias += len(vals)
+                row[MESES[m-1]] = f"{np.mean([v['tmed'] for v in vals]):.1f}" if vals else "—"
+            row["N dias"] = n_dias
+            rows_t.append(row)
+        df_t = pd.DataFrame(rows_t).set_index("Ano")
+
+        # Destacar anos com N dias < 340 (série incompleta)
+        def _style_ndays(val):
+            try:
+                v = int(val)
+                if v < 340: return "color: #ef4444; font-weight: bold"
+                if v < 365: return "color: #f59e0b"
+            except: pass
+            return ""
+
+        st.dataframe(
+            df_t.style.applymap(_style_ndays, subset=["N dias"]),
+            use_container_width=True,
+        )
+
+        # Tabela de precipitação mensal
+        st.markdown("##### Precipitação mensal (mm)")
+        rows_p = []
+        for ano in anos_c:
+            row = {"Ano": str(ano)}
+            total = 0
+            for m in range(1, 13):
+                vals = agg[ano][m]
+                soma = sum(v["p"] for v in vals)
+                total += soma
+                row[MESES[m-1]] = f"{soma:.0f}" if vals else "—"
+            row["Total"] = f"{total:.0f}"
+            rows_p.append(row)
+        df_p = pd.DataFrame(rows_p).set_index("Ano")
+
+        # Destacar totais anuais anômalos (< 800mm ou > 2500mm)
+        def _style_total(val):
+            try:
+                v = float(val)
+                if v < 800:  return "color: #ef4444; font-weight: bold"
+                if v > 2500: return "color: #f59e0b; font-weight: bold"
+            except: pass
+            return ""
+
+        st.dataframe(
+            df_p.style.applymap(_style_total, subset=["Total"]),
+            use_container_width=True,
+        )
+
+        # Gráfico de precipitação anual total
+        st.markdown("##### Precipitação anual total e temperatura média anual")
+        totais_p   = []
+        tmed_anual = []
+        for ano in anos_c:
+            todos = [v for m in agg[ano].values() for v in m]
+            totais_p.append(sum(v["p"] for v in todos))
+            tmed_anual.append(np.mean([v["tmed"] for v in todos]) if todos else None)
+
+        fig_c = go.Figure()
+        fig_c.add_trace(go.Bar(
+            x=[str(a) for a in anos_c],
+            y=totais_p,
+            name="Precipitação total (mm)",
+            marker_color="rgba(59,130,246,0.7)",
+            yaxis="y1",
+        ))
+        fig_c.add_trace(go.Scatter(
+            x=[str(a) for a in anos_c],
+            y=tmed_anual,
+            mode="lines+markers",
+            name="Tmed anual (°C)",
+            line=dict(color="#f59e0b", width=2),
+            marker=dict(size=7),
+            yaxis="y2",
+        ))
+        fig_c.update_layout(
+            paper_bgcolor="#0e1117",
+            plot_bgcolor="#13161f",
+            font=dict(family="DM Sans, sans-serif", color="#d1d5db", size=12),
+            xaxis=dict(title="Ano", gridcolor="#1e2130", type="category"),
+            yaxis=dict(title="Precipitação (mm)", gridcolor="#1e2130"),
+            yaxis2=dict(title="Tmed (°C)", overlaying="y", side="right",
+                        showgrid=False, range=[15, 35]),
+            legend=dict(bgcolor="rgba(19,22,31,0.9)", bordercolor="#2a2e3e",
+                        borderwidth=1, font=dict(size=11),
+                        orientation="h", yanchor="bottom", y=1.02, x=0),
+            margin=dict(l=60, r=60, t=60, b=60),
+            height=380,
+            bargap=0.3,
+        )
+        st.plotly_chart(fig_c, use_container_width=True)
+
+        # Diagnóstico de consistência
+        st.markdown("##### Diagnóstico de consistência")
+        problemas = []
+        for ano in anos_c:
+            todos = [v for m in agg[ano].values() for v in m]
+            n = len(todos)
+            if n < 340:
+                problemas.append(f"⚠️ **{ano}**: apenas {n} dias na série — ano incompleto, simular com cautela.")
+            prec_total = sum(v["p"] for v in todos)
+            if prec_total < 800:
+                problemas.append(f"🔴 **{ano}**: precipitação total {prec_total:.0f} mm — valor muito baixo para o Cerrado.")
+            if prec_total > 2500:
+                problemas.append(f"🟡 **{ano}**: precipitação total {prec_total:.0f} mm — valor elevado, verificar consistência.")
+            tmeds = [v["tmed"] for v in todos]
+            if tmeds and (min(tmeds) < 10 or max(tmeds) > 40):
+                problemas.append(f"🔴 **{ano}**: temperatura fora do range esperado ({min(tmeds):.1f}–{max(tmeds):.1f}°C).")
+
+        if problemas:
+            for p in problemas:
+                st.markdown(p)
+        else:
+            st.success("✅ Série climática sem anomalias detectadas nos critérios avaliados.")
 
 
 render_footer()
