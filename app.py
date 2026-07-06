@@ -584,7 +584,7 @@ with tab_clima:
             return ""
 
         st.dataframe(
-            df_t.style.applymap(_style_ndays, subset=["N dias"]),
+            df_t.style.map(_style_ndays, subset=["N dias"]),
             use_container_width=True,
         )
 
@@ -613,7 +613,7 @@ with tab_clima:
             return ""
 
         st.dataframe(
-            df_p.style.applymap(_style_total, subset=["Total"]),
+            df_p.style.map(_style_total, subset=["Total"]),
             use_container_width=True,
         )
 
