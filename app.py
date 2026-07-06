@@ -54,7 +54,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     for a in anos_plot:
         p50_kg = resultados_anos[a]["prod_ating_p50"]   # sempre em kg/ha
         real   = prod_real.get(a, 0)                    # sempre em kg/ha
-        eff_vals.append((real / (p50_kg * f_genetico) * 100) if p50_kg > 0 and real > 0 else None)
+        eff_vals.append((real / p50_kg * 100) if p50_kg > 0 and real > 0 else None)
 
     fig = go.Figure()
 
@@ -153,7 +153,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
             real   = prod_real.get(ano, 0)
             p50_kg = resultados_anos[ano]["prod_ating_p50"]   # kg/ha bruto
             if p50_kg > 0:
-                eff   = real / (p50_kg * f_genetico) * 100
+                eff   = real / p50_kg * 100
                 label = "✅ Boa" if eff >= 85 else ("⚠️ Moderada" if eff >= 70 else "🔴 Baixa")
                 with cols[i]:
                     st.metric(
@@ -169,7 +169,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         r    = resultados_anos[ano]
         real = prod_real.get(ano, 0)
         p50  = r["prod_ating_p50"]
-        eff  = f"{real/(p50*f_genetico)*100:.1f}%" if real > 0 and p50 > 0 else "—"
+        eff  = f"{real/p50*100:.1f}%" if real > 0 and p50 > 0 else "—"
         rows.append({
             "Safra":               f"{str(ano-1)[2:]}/{str(ano)[2:]}",
             f"P10 ({_un_lbl})":    f"{_c(r['prod_ating_p10']):.1f}",
