@@ -10,13 +10,13 @@ from dataclasses import dataclass
 from typing import Optional
 
 CULTURAS = {
-    "Milho":   {"Tb_inf": 10, "Tb_sup": 32, "ciclo": 120, "ST_ciclo": 2170, "ST_floresc": 900,  "iem_coef": 3.81},
-    "Feijão":  {"Tb_inf": 10, "Tb_sup": 35, "ciclo": 90,  "ST_ciclo": 1480, "ST_floresc": 720,  "iem_coef": 0.93},
-    "Soja":    {"Tb_inf": 13, "Tb_sup": 40, "ciclo": 115, "ST_ciclo": 1700, "ST_floresc": 560,  "iem_coef": 1.97},
-    "Algodão": {"Tb_inf": 13, "Tb_sup": 33, "ciclo": 200, "ST_ciclo": 2760, "ST_floresc": 680,  "iem_coef": 2.88},
-    "Arroz":   {"Tb_inf": 10, "Tb_sup": 30, "ciclo": 110, "ST_ciclo": 1450, "ST_floresc": 970,  "iem_coef": 2.52},
-    "Cana":    {"Tb_inf": 16, "Tb_sup": 35, "ciclo": 365, "ST_ciclo": 4000, "ST_floresc": 2000, "iem_coef": 2.50},
-    "Trigo":   {"Tb_inf": 0,  "Tb_sup": 26, "ciclo": 120, "ST_ciclo": 1800, "ST_floresc": 900,  "iem_coef": 1.50},
+    "Milho":   {"Tb_inf": 10, "Tb_sup": 32, "ciclo": 120, "ST_ciclo": 2170, "ST_floresc": 900,  "iem_coef": 3.81, "f_genetico": 1.42},
+    "Feijão":  {"Tb_inf": 10, "Tb_sup": 35, "ciclo": 90,  "ST_ciclo": 1480, "ST_floresc": 720,  "iem_coef": 0.93, "f_genetico": 1.33},
+    "Soja":    {"Tb_inf": 13, "Tb_sup": 40, "ciclo": 115, "ST_ciclo": 1700, "ST_floresc": 560,  "iem_coef": 1.97, "f_genetico": 1.33},
+    "Algodão": {"Tb_inf": 13, "Tb_sup": 33, "ciclo": 200, "ST_ciclo": 2760, "ST_floresc": 680,  "iem_coef": 2.88, "f_genetico": 1.33},
+    "Arroz":   {"Tb_inf": 10, "Tb_sup": 30, "ciclo": 110, "ST_ciclo": 1450, "ST_floresc": 970,  "iem_coef": 2.52, "f_genetico": 1.33},
+    "Cana":    {"Tb_inf": 16, "Tb_sup": 35, "ciclo": 365, "ST_ciclo": 4000, "ST_floresc": 2000, "iem_coef": 2.50, "f_genetico": 1.33},
+    "Trigo":   {"Tb_inf": 0,  "Tb_sup": 26, "ciclo": 120, "ST_ciclo": 1800, "ST_floresc": 900,  "iem_coef": 1.50, "f_genetico": 1.33},
 }
 
 
