@@ -48,7 +48,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     p10_vals  = [_c(resultados_anos[a]["prod_ating_p10"]) for a in anos_plot]
     p50_vals  = [_c(resultados_anos[a]["prod_ating_p50"]) for a in anos_plot]
     p90_vals  = [_c(resultados_anos[a]["prod_ating_p90"]) for a in anos_plot]
-    anos_str  = [str(a) for a in anos_plot]
+    anos_str  = [f"{str(a-1)[2:]}/{str(a)[2:]}" for a in anos_plot]
 
     eff_vals = []
     for a in anos_plot:
@@ -157,7 +157,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
                 label = "✅ Boa" if eff >= 85 else ("⚠️ Moderada" if eff >= 70 else "🔴 Baixa")
                 with cols[i]:
                     st.metric(
-                        label=f"{ano} — {label}",
+                        label=f"{str(ano-1)[2:]}/{str(ano)[2:]} — {label}",
                         value=f"{eff:.1f}%",
                         delta=f"Real: {_c(real):.1f} {_un_lbl}",
                     )
@@ -171,7 +171,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         p50  = r["prod_ating_p50"]
         eff  = f"{real/(p50*f_genetico)*100:.1f}%" if real > 0 and p50 > 0 else "—"
         rows.append({
-            "Ano":                  ano,
+            "Safra":               f"{str(ano-1)[2:]}/{str(ano)[2:]}",
             f"P10 ({_un_lbl})":    f"{_c(r['prod_ating_p10']):.1f}",
             f"P50 ({_un_lbl})":    f"{_c(r['prod_ating_p50']):.1f}",
             f"P90 ({_un_lbl})":    f"{_c(r['prod_ating_p90']):.1f}",
