@@ -150,10 +150,10 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     if anos_com_real:
         cols = st.columns(len(anos_com_real))
         for i, ano in enumerate(anos_com_real):
-            real = prod_real.get(ano, 0)
-            p50  = resultados_anos[ano]["prod_ating_p50"]
-            if p50 > 0:
-                eff = real / p50 * 100
+            real   = prod_real.get(ano, 0)
+            p50_kg = resultados_anos[ano]["prod_ating_p50"]   # kg/ha bruto
+            if p50_kg > 0:
+                eff   = real / (p50_kg * f_genetico) * 100
                 label = "✅ Boa" if eff >= 85 else ("⚠️ Moderada" if eff >= 70 else "🔴 Baixa")
                 with cols[i]:
                     st.metric(
@@ -169,7 +169,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         r    = resultados_anos[ano]
         real = prod_real.get(ano, 0)
         p50  = r["prod_ating_p50"]
-        eff  = f"{real/p50*100:.1f}%" if real > 0 and p50 > 0 else "—"
+        eff  = f"{real/(p50*f_genetico)*100:.1f}%" if real > 0 and p50 > 0 else "—"
         rows.append({
             "Ano":                  ano,
             f"P10 ({_un_lbl})":    f"{_c(r['prod_ating_p10']):.1f}",
@@ -458,6 +458,8 @@ with tab_sim:
                 st.session_state["prod_real_saved"] = prod_real
                 st.session_state["anos_sim"]        = anos_lista
                 st.session_state["cultura_sim"]     = cultura
+                st.session_state["unidade_sim"]     = unidade
+                st.session_state["f_genetico_sim"]  = f_genetico
 
             except Exception as e:
                 st.error(f"Erro na simulação: {e}")
@@ -465,12 +467,14 @@ with tab_sim:
 
     # ── Resultados ────────────────────────────────────────────────────────
     if "resultados_anos" in st.session_state:
-        resultados_anos = st.session_state["resultados_anos"]
-        prod_real_saved = st.session_state.get("prod_real_saved", {})
-        anos_sim        = st.session_state.get("anos_sim", anos)
-        cultura_sim     = st.session_state.get("cultura_sim", cultura)
+        resultados_anos  = st.session_state["resultados_anos"]
+        prod_real_saved  = st.session_state.get("prod_real_saved", {})
+        anos_sim         = st.session_state.get("anos_sim", anos)
+        cultura_sim      = st.session_state.get("cultura_sim", cultura)
+        unidade_sim      = st.session_state.get("unidade_sim", unidade)
+        f_genetico_sim   = st.session_state.get("f_genetico_sim", f_genetico)
 
-        _construir_grafico(resultados_anos, prod_real_saved, anos_sim, cultura_sim, unidade=unidade, f_genetico=f_genetico)
+        _construir_grafico(resultados_anos, prod_real_saved, anos_sim, cultura_sim, unidade=unidade_sim, f_genetico=f_genetico_sim)
 
 
 render_footer()
