@@ -9,24 +9,7 @@ import plotly.graph_objects as go
 from datetime import date
 
 # ── Módulos do projeto ───────────────────────────────────────────────────────
-# Fator de conversão kg → sc/ha por cultura (peso do saco padrão)
-_SC_KG = {
-    "Soja":    60,
-    "Milho":   60,
-    "Feijão":  60,
-    "Arroz":   50,
-    "Trigo":   60,
-    "Algodão": 15,   # arroba (15 kg pluma) — exibe "@/ha" automaticamente
-    "Cana":    1000, # toneladas — exibe "t/ha"
-}
-_SC_LABEL = {
-    "Soja": "sc/ha", "Milho": "sc/ha", "Feijão": "sc/ha",
-    "Arroz": "sc/ha", "Trigo": "sc/ha",
-    "Algodão": "@/ha", "Cana": "t/ha",
-}
-
-# ── Módulos do projeto ───────────────────────────────────────────────────────
-from model_engine import simular_janela
+from model_engine import simular_janela, CULTURAS
 from nasa_power import buscar_serie_climatica, calcular_tmed_ref
 from auth import render_auth_page, logout
 from brand import (
@@ -43,27 +26,25 @@ from brand import (
 # Função de gráfico — definida antes de ser chamada
 # ────────────────────────────────────────────────────────────────────────────
 
-def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultura: str, unidade: str = "kg/ha", f_genetico: float = 1.0):
+def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultura: str, unidade: str = "kg/ha", f_genetico: float = 1.33):
     """Gráfico Plotly com faixa P10-P90, P50, real e eficiência."""
 
     anos_plot = sorted(resultados_anos.keys())
-    # Fator de conversão para exibição
-    _fator  = _SC_KG.get(cultura, 60) if unidade == 'sc/ha' else 1
-    _un_lbl = _SC_LABEL.get(cultura, 'sc/ha') if unidade == 'sc/ha' else 'kg/ha'
+    # Conversão de unidade para exibição
+    _fator  = _SC_KG.get(cultura, 60) if unidade == "sc/ha" else 1
+    _un_lbl = _SC_LABEL.get(cultura, "sc/ha") if unidade == "sc/ha" else "kg/ha"
+    def _c(v): return v / _fator if v is not None and v > 0 else v
 
-    def _conv(v):
-        return v / _fator if v is not None else None
-
-    p10_vals  = [_conv(resultados_anos[a]["prod_ating_p10"]) for a in anos_plot]
-    p50_vals  = [_conv(resultados_anos[a]["prod_ating_p50"]) for a in anos_plot]
-    p90_vals  = [_conv(resultados_anos[a]["prod_ating_p90"]) for a in anos_plot]
+    p10_vals  = [_c(resultados_anos[a]["prod_ating_p10"]) for a in anos_plot]
+    p50_vals  = [_c(resultados_anos[a]["prod_ating_p50"]) for a in anos_plot]
+    p90_vals  = [_c(resultados_anos[a]["prod_ating_p90"]) for a in anos_plot]
     anos_str  = [str(a) for a in anos_plot]
 
     eff_vals = []
     for a in anos_plot:
-        p50  = resultados_anos[a]["prod_ating_p50"]
-        real = prod_real.get(a, 0)
-        eff_vals.append((real / (resultados_anos[a]["prod_ating_p50"] * f_genetico) * 100) if resultados_anos[a]["prod_ating_p50"] > 0 and real > 0 else None)
+        p50_kg = resultados_anos[a]["prod_ating_p50"]   # sempre em kg/ha
+        real   = prod_real.get(a, 0)                    # sempre em kg/ha
+        eff_vals.append((real / (p50_kg * f_genetico) * 100) if p50_kg > 0 and real > 0 else None)
 
     fig = go.Figure()
 
@@ -91,7 +72,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     ))
 
     # Real
-    real_vals_plot = [_conv(prod_real.get(a, 0)) if prod_real.get(a, 0) > 0 else None
+    real_vals_plot = [_c(prod_real.get(a, 0)) if prod_real.get(a, 0) > 0 else None
                       for a in anos_plot]
     fig.add_trace(go.Scatter(
         x=anos_str, y=real_vals_plot,
@@ -168,7 +149,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
                     st.metric(
                         label=f"{ano} — {label}",
                         value=f"{eff:.1f}%",
-                        delta=f"Real: {real/_fator:.1f} {_un_lbl}",
+                        delta=f"Real: {_c(real):.1f} {_un_lbl}",
                     )
 
     # Tabela resumo
@@ -180,11 +161,11 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         p50  = r["prod_ating_p50"]
         eff  = f"{real/p50*100:.1f}%" if real > 0 and p50 > 0 else "—"
         rows.append({
-            "Ano":                    ano,
-            f"P10 ({_un_lbl})":       f"{r['prod_ating_p10']/_fator:.1f}",
-            f"P50 ({_un_lbl})":       f"{r['prod_ating_p50']/_fator:.1f}",
-            f"P90 ({_un_lbl})":       f"{r['prod_ating_p90']/_fator:.1f}",
-            f"Real ({_un_lbl})":      f"{real/_fator:.1f}" if real > 0 else "—",
+            "Ano":                  ano,
+            f"P10 ({_un_lbl})":    f"{_c(r['prod_ating_p10']):.1f}",
+            f"P50 ({_un_lbl})":    f"{_c(r['prod_ating_p50']):.1f}",
+            f"P90 ({_un_lbl})":    f"{_c(r['prod_ating_p90']):.1f}",
+            f"Real ({_un_lbl})":   f"{_c(real):.1f}" if real > 0 else "—",
             "Efic.": eff,
         })
     df = pd.DataFrame(rows).set_index("Ano")
@@ -245,27 +226,30 @@ with st.sidebar:
     prof   = st.number_input("Prof. radicular (cm)", 10, 100, 30, step=5)
 
     st.markdown("---")
-    st.markdown("#### ⚙️ Parâmetros avançados")
-
-    unidade = st.radio(
-        "Unidade de produtividade",
-        ["kg/ha", "sc/ha"],
-        index=0,
-        horizontal=True,
-        help="sc/ha usa o peso padrão de saco por cultura (Soja/Milho/Feijão/Trigo: 60 kg; Arroz: 50 kg; Cana: t/ha)",
-    )
-
-    f_genetico = st.slider(
-        "Fator genético (f_genetico)",
-        min_value=0.50, max_value=1.50, value=1.00, step=0.05,
-        help="Multiplica o teto atingível. f < 1 rebaixa o potencial (cultivar limitado); f > 1 eleva.",
-    )
-    if f_genetico != 1.0:
-        sentido = "rebaixado" if f_genetico < 1.0 else "elevado"
-        st.caption(
-            f"⚠️ Teto atingível {sentido} em {abs(1-f_genetico)*100:.0f}% "
-            f"pelo fator genético — a eficiência é calculada sobre P50 × {f_genetico:.2f}."
+    with st.expander("⚙️ Parâmetros avançados", expanded=False):
+        unidade = st.radio(
+            "Unidade de produtividade",
+            ["kg/ha", "sc/ha"],
+            index=0,
+            horizontal=True,
+            help="Soja / Milho / Feijão / Trigo = 60 kg/sc · Arroz = 50 kg/sc · Cana = t/ha · Algodão = @/ha (15 kg)",
         )
+        _fg_default = CULTURAS[cultura].get("f_genetico", 1.33)
+        f_genetico = st.number_input(
+            "Fator genético (f_genetico)",
+            min_value=0.50,
+            max_value=2.00,
+            value=_fg_default,
+            step=0.01,
+            format="%.2f",
+            help="Multiplica o teto atingível. Padrão carregado por cultura. f < 1 rebaixa o potencial; f > 1 eleva.",
+        )
+        if abs(f_genetico - 1.0) > 0.001:
+            sentido = "rebaixado" if f_genetico < 1.0 else "elevado"
+            st.caption(
+                f"⚠️ Teto {sentido} em {abs(1-f_genetico)*100:.0f}% pelo fator genético "
+                f"(padrão da cultura: {_fg_default:.2f})."
+            )
 
     st.markdown("---")
     st.markdown("#### 📅 Anos simulados")
@@ -393,17 +377,17 @@ with tab_sim:
     st.markdown("---")
 
     # ── Entrada de produção real ──────────────────────────────────────────
-    _fator  = _SC_KG.get(cultura, 60) if unidade == 'sc/ha' else 1
-    _un_lbl = _SC_LABEL.get(cultura, 'sc/ha') if unidade == 'sc/ha' else 'kg/ha'
-    _max_inp = 20000.0 / _fator
-    _step   = 0.1 if unidade == 'sc/ha' else 1.0
-    _fmt    = '%.1f' if unidade == 'sc/ha' else '%.0f'
+    _fator   = _SC_KG.get(cultura, 60) if unidade == 'sc/ha' else 1
+    _un_lbl  = _SC_LABEL.get(cultura, 'sc/ha') if unidade == 'sc/ha' else 'kg/ha'
+    _max_inp = round(20000.0 / _fator, 1)
+    _step    = 0.1 if unidade == 'sc/ha' else 1.0
+    _fmt     = '%.1f' if unidade == 'sc/ha' else '%.0f'
 
     st.markdown(f'#### Produção Real ({_un_lbl})')
     st.markdown(
         f'<div style="font-family:\'DM Sans\',sans-serif;font-size:0.78rem;'
         f'color:#6b7280;margin-bottom:0.75rem;">'
-        f'Insira a produtividade real em <b>{_un_lbl}</b>. Deixe 0 para omitir o ano.</div>',
+        f'Insira em <b>{_un_lbl}</b>. Deixe 0 para omitir o ano.</div>',
         unsafe_allow_html=True,
     )
 
@@ -422,7 +406,6 @@ with tab_sim:
                 format=_fmt,
                 key=f'real_{ano}',
             )
-            # Armazena sempre em kg/ha internamente
             prod_real[ano] = v_inp * _fator if v_inp > 0 else 0.0
 
     st.markdown("---")
