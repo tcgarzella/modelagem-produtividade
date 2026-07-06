@@ -48,7 +48,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
     p10_vals  = [_c(resultados_anos[a]["prod_ating_p10"]) for a in anos_plot]
     p50_vals  = [_c(resultados_anos[a]["prod_ating_p50"]) for a in anos_plot]
     p90_vals  = [_c(resultados_anos[a]["prod_ating_p90"]) for a in anos_plot]
-    anos_str  = [f"{str(a-1)[2:]}/{str(a)[2:]}" for a in anos_plot]
+    anos_str  = [f"{str(a)[2:]}/{str(a+1)[2:]}" for a in anos_plot]
 
     eff_vals = []
     for a in anos_plot:
@@ -157,7 +157,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
                 label = "✅ Boa" if eff >= 85 else ("⚠️ Moderada" if eff >= 70 else "🔴 Baixa")
                 with cols[i]:
                     st.metric(
-                        label=f"{str(ano-1)[2:]}/{str(ano)[2:]} — {label}",
+                        label=f"{str(ano)[2:]}/{str(ano+1)[2:]} — {label}",
                         value=f"{eff:.1f}%",
                         delta=f"Real: {_c(real):.1f} {_un_lbl}",
                     )
@@ -171,7 +171,7 @@ def _construir_grafico(resultados_anos: dict, prod_real: dict, anos: list, cultu
         p50  = r["prod_ating_p50"]
         eff  = f"{real/p50*100:.1f}%" if real > 0 and p50 > 0 else "—"
         rows.append({
-            "Safra":               f"{str(ano-1)[2:]}/{str(ano)[2:]}",
+            "Safra":               f"{str(ano)[2:]}/{str(ano+1)[2:]}",
             f"P10 ({_un_lbl})":    f"{_c(r['prod_ating_p10']):.1f}",
             f"P50 ({_un_lbl})":    f"{_c(r['prod_ating_p50']):.1f}",
             f"P90 ({_un_lbl})":    f"{_c(r['prod_ating_p90']):.1f}",
@@ -393,17 +393,34 @@ with tab_sim:
     # ── Entrada de produção real ──────────────────────────────────────────
     _fator   = _SC_KG.get(cultura, 60) if unidade == 'sc/ha' else 1
     _un_lbl  = _SC_LABEL.get(cultura, 'sc/ha') if unidade == 'sc/ha' else 'kg/ha'
-    _max_inp = round(20000.0 / _fator, 1)
-    _step    = 0.1 if unidade == 'sc/ha' else 1.0
-    _fmt     = '%.1f' if unidade == 'sc/ha' else '%.0f'
+    _max_inp = round(20000.0 / _fator, 2)
 
     st.markdown(f'#### Produção Real ({_un_lbl})')
     st.markdown(
         f'<div style="font-family:\'DM Sans\',sans-serif;font-size:0.78rem;'
         f'color:#6b7280;margin-bottom:0.75rem;">'
-        f'Insira em <b>{_un_lbl}</b>. Deixe 0 para omitir o ano.</div>',
+        f'Insira em <b>{_un_lbl}</b>, com até 2 casas decimais (aceita ponto ou vírgula). '
+        f'Deixe 0 para omitir a safra.</div>',
         unsafe_allow_html=True,
     )
+
+    def _parse_ptbr_number(txt: str):
+        """Converte texto em float aceitando ',' ou '.' como separador decimal.
+        Se ambos aparecerem, assume convenção BR ('.' milhar, ',' decimal).
+        Retorna None se o texto não for um número válido."""
+        if txt is None:
+            return None
+        txt = txt.strip()
+        if txt == "":
+            return 0.0
+        if "," in txt and "." in txt:
+            txt = txt.replace(".", "").replace(",", ".")
+        else:
+            txt = txt.replace(",", ".")
+        try:
+            return float(txt)
+        except ValueError:
+            return None
 
     anos = list(range(int(ano_ini), int(ano_fim) + 1))
     n_cols = min(len(anos), 5)
@@ -411,15 +428,23 @@ with tab_sim:
     prod_real = {}
     for i, ano in enumerate(anos):
         with cols_real[i % n_cols]:
-            v_inp = st.number_input(
-                str(ano),
-                min_value=0.0,
-                max_value=_max_inp,
-                value=0.0,
-                step=_step,
-                format=_fmt,
+            txt_inp = st.text_input(
+                f"{str(ano)[2:]}/{str(ano+1)[2:]}",
+                value="0,00",
                 key=f'real_{ano}',
+                help=(
+                    f"Produção real em {_un_lbl}, 0 a {_max_inp:.2f}. "
+                    f"Aceita ponto ou vírgula, até 2 casas decimais."
+                ),
             )
+            v_inp = _parse_ptbr_number(txt_inp)
+            if v_inp is None:
+                st.error("Valor inválido — use número com até 2 casas decimais (ex: 72,80 ou 72.80).")
+                v_inp = 0.0
+            elif v_inp < 0 or v_inp > _max_inp:
+                st.error(f"Fora do intervalo permitido (0–{_max_inp:.2f} {_un_lbl}).")
+                v_inp = 0.0
+            v_inp = round(v_inp, 2)
             prod_real[ano] = v_inp * _fator if v_inp > 0 else 0.0
 
     st.markdown("---")
@@ -559,7 +584,7 @@ with tab_clima:
             return ""
 
         st.dataframe(
-            df_t.style.map(_style_ndays, subset=["N dias"]),
+            df_t.style.applymap(_style_ndays, subset=["N dias"]),
             use_container_width=True,
         )
 
@@ -588,7 +613,7 @@ with tab_clima:
             return ""
 
         st.dataframe(
-            df_p.style.map(_style_total, subset=["Total"]),
+            df_p.style.applymap(_style_total, subset=["Total"]),
             use_container_width=True,
         )
 
